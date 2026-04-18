@@ -4,11 +4,13 @@ using HackerManChat.Api.Data;
 using HackerManChat.Api.Data.Entities;
 using HackerManChat.Api.DMs;
 using HackerManChat.Api.Friends;
+using HackerManChat.Api.Hubs;
 using HackerManChat.Api.Rooms;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -57,8 +59,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<TokenService>();
 
+// Shared Redis connection used by both the SignalR backplane and PresenceHub
+var redis = ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!);
+builder.Services.AddSingleton<IConnectionMultiplexer>(redis);
 builder.Services.AddSignalR()
-    .AddStackExchangeRedis(builder.Configuration.GetConnectionString("Redis")!);
+    .AddStackExchangeRedis(opts =>
+        opts.ConnectionFactory = _ => Task.FromResult<IConnectionMultiplexer>(redis));
 
 builder.Services.AddCors(opts =>
     opts.AddDefaultPolicy(p => p
@@ -82,7 +88,10 @@ app.UseAuthorization();
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" }));
 app.MapAuthEndpoints();
 app.MapRoomEndpoints();
+app.MapRoomMessageEndpoints();
 app.MapFriendEndpoints();
 app.MapDmEndpoints();
+app.MapHub<ChatHub>("/hubs/chat");
+app.MapHub<PresenceHub>("/hubs/presence");
 
 app.Run();

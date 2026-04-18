@@ -1,19 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { useAuth } from './store/auth'
+import { authApi, hasRefreshToken } from './lib/api'
+import Auth from './views/Auth'
+import ChatApp from './views/ChatApp'
 
 export default function App() {
-  const [status, setStatus] = useState<string>('checking…')
+  const { user, setAuth, logout } = useAuth()
 
+  // On first load, try to restore session from the stored refresh token
   useEffect(() => {
-    fetch('/api/health')
-      .then((r) => r.json())
-      .then((d: { status: string }) => setStatus(d.status))
-      .catch(() => setStatus('unreachable'))
-  }, [])
+    if (user || !hasRefreshToken()) return
+    authApi.refreshSession()
+      .then((res) => { if (res) setAuth(res.user, res.accessToken, res.refreshToken); else logout() })
+      .catch(logout)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: 32 }}>
-      <h1>HackerManChat</h1>
-      <p>api: {status}</p>
-    </main>
-  )
+  return user ? <ChatApp /> : <Auth />
 }

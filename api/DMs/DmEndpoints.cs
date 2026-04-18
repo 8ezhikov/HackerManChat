@@ -2,6 +2,9 @@ using System.Security.Claims;
 using HackerManChat.Api.Data;
 using HackerManChat.Api.Data.Entities;
 using HackerManChat.Api.Friends;
+using HackerManChat.Api.Hubs;
+using HackerManChat.Api.Messages;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace HackerManChat.Api.DMs;
@@ -53,7 +56,6 @@ public static class DmEndpoints
         db.PersonalChats.Add(chat);
         await db.SaveChangesAsync();
 
-        // Reload with navigation properties for DTO mapping
         await db.Entry(chat).Reference(c => c.User1).LoadAsync();
         await db.Entry(chat).Reference(c => c.User2).LoadAsync();
         return Results.Created($"/api/dms/{chat.Id}", chat.ToDto(myId));
@@ -87,7 +89,8 @@ public static class DmEndpoints
     // ── Messages ──────────────────────────────────────────────────────────────
 
     private static async Task<IResult> SendMessage(
-        Guid id, SendMessageBody body, ClaimsPrincipal principal, AppDbContext db)
+        Guid id, SendMessageBody body, ClaimsPrincipal principal,
+        AppDbContext db, IHubContext<ChatHub> hub)
     {
         var myId = UserId(principal);
         var chat = await db.PersonalChats.FindAsync(id);
@@ -111,17 +114,18 @@ public static class DmEndpoints
                 return Results.BadRequest(new { error = "Invalid replyToId." });
         }
 
-        var msg = new Message
-        {
-            PersonalChatId = id,
-            AuthorId = myId,
-            Content = body.Content,
-            ReplyToId = body.ReplyToId,
-        };
+        var msg = new Message { PersonalChatId = id, AuthorId = myId, Content = body.Content, ReplyToId = body.ReplyToId };
         db.Messages.Add(msg);
         await db.SaveChangesAsync();
         await db.Entry(msg).Reference(m => m.Author).LoadAsync();
-        return Results.Created($"/api/dms/{id}/messages/{msg.Id}", msg.ToDto());
+
+        var dto = msg.ToDto();
+        await hub.Clients.Group(HubConstants.UserGroup(chat.User1Id))
+            .SendAsync(HubConstants.DmMessageReceived, id, dto);
+        await hub.Clients.Group(HubConstants.UserGroup(chat.User2Id))
+            .SendAsync(HubConstants.DmMessageReceived, id, dto);
+
+        return Results.Created($"/api/dms/{id}/messages/{msg.Id}", dto);
     }
 
     private static async Task<IResult> GetMessages(
@@ -140,7 +144,6 @@ public static class DmEndpoints
             .Include(m => m.Author)
             .AsQueryable();
 
-        // Keyset pagination: messages before the cursor
         if (before.HasValue && beforeId.HasValue)
             query = query.Where(m => m.CreatedAt < before.Value ||
                                      (m.CreatedAt == before.Value && m.Id < beforeId.Value));
@@ -156,14 +159,14 @@ public static class DmEndpoints
     }
 
     private static async Task<IResult> EditMessage(
-        Guid id, Guid msgId, EditMessageBody body, ClaimsPrincipal principal, AppDbContext db)
+        Guid id, Guid msgId, EditMessageBody body, ClaimsPrincipal principal,
+        AppDbContext db, IHubContext<ChatHub> hub)
     {
         var myId = UserId(principal);
         var chat = await db.PersonalChats.FindAsync(id);
         if (chat == null || !IsParticipant(chat, myId)) return Results.Forbid();
 
-        var msg = await db.Messages
-            .Include(m => m.Author)
+        var msg = await db.Messages.Include(m => m.Author)
             .FirstOrDefaultAsync(m => m.Id == msgId && m.PersonalChatId == id);
         if (msg == null) return Results.NotFound();
         if (msg.AuthorId != myId) return Results.Forbid();
@@ -175,11 +178,19 @@ public static class DmEndpoints
         msg.Content = body.Content;
         msg.EditedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
-        return Results.Ok(msg.ToDto());
+
+        var dto = msg.ToDto();
+        await hub.Clients.Group(HubConstants.UserGroup(chat.User1Id))
+            .SendAsync(HubConstants.DmMessageEdited, id, dto);
+        await hub.Clients.Group(HubConstants.UserGroup(chat.User2Id))
+            .SendAsync(HubConstants.DmMessageEdited, id, dto);
+
+        return Results.Ok(dto);
     }
 
     private static async Task<IResult> DeleteMessage(
-        Guid id, Guid msgId, ClaimsPrincipal principal, AppDbContext db)
+        Guid id, Guid msgId, ClaimsPrincipal principal,
+        AppDbContext db, IHubContext<ChatHub> hub)
     {
         var myId = UserId(principal);
         var chat = await db.PersonalChats.FindAsync(id);
@@ -191,6 +202,12 @@ public static class DmEndpoints
 
         msg.IsDeleted = true;
         await db.SaveChangesAsync();
+
+        await hub.Clients.Group(HubConstants.UserGroup(chat.User1Id))
+            .SendAsync(HubConstants.DmMessageDeleted, id, msgId);
+        await hub.Clients.Group(HubConstants.UserGroup(chat.User2Id))
+            .SendAsync(HubConstants.DmMessageDeleted, id, msgId);
+
         return Results.NoContent();
     }
 

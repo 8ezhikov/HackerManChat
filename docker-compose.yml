@@ -37,6 +37,9 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=hackermanchat;Username=chat;Password=chat
       ConnectionStrings__Redis: redis:6379
+      Smtp__Host: mailhog
+      Smtp__Port: 1025
+      Smtp__From: noreply@hackermanchat.local
     volumes:
       - chatfiles:/data/chatfiles
     depends_on:

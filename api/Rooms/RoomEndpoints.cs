@@ -13,6 +13,7 @@ public static class RoomEndpoints
 
         g.MapPost("", CreateRoom);
         g.MapGet("", ListRooms);
+        g.MapGet("mine", GetMyRooms);
         g.MapGet("{id:guid}", GetRoom);
         g.MapPatch("{id:guid}", UpdateRoom);
         g.MapDelete("{id:guid}", DeleteRoom);
@@ -54,16 +55,34 @@ public static class RoomEndpoints
         return Results.Created($"/api/rooms/{room.Id}", room.ToDto());
     }
 
+    private static async Task<IResult> GetMyRooms(
+        ClaimsPrincipal principal, AppDbContext db)
+    {
+        var uid = UserId(principal);
+        var rooms = await db.RoomMembers
+            .Where(m => m.UserId == uid)
+            .Include(m => m.Room)
+            .Select(m => m.Room.ToDto())
+            .ToListAsync();
+        return Results.Ok(rooms);
+    }
+
     private static async Task<IResult> ListRooms(
-        AppDbContext db, int page = 1, int pageSize = 20)
+        AppDbContext db, int page = 1, int pageSize = 20, string? search = null)
     {
         pageSize = Math.Clamp(pageSize, 1, 100);
-        var rooms = await db.Rooms
-            .Where(r => r.Visibility == RoomVisibility.Public)
+        var query = db.Rooms.Where(r => r.Visibility == RoomVisibility.Public);
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(r => r.Name.ToLower().Contains(search.ToLower()));
+        var rooms = await query
             .OrderBy(r => r.Name)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(r => r.ToDto())
+            .Select(r => new RoomDto(
+                r.Id, r.Name, r.Description,
+                r.Visibility.ToString().ToLower(),
+                r.OwnerId, r.CreatedAt,
+                db.RoomMembers.Count(m => m.RoomId == r.Id)))
             .ToListAsync();
         return Results.Ok(rooms);
     }
@@ -89,6 +108,14 @@ public static class RoomEndpoints
         if (room == null) return Results.NotFound();
         if (room.OwnerId != UserId(principal)) return Results.Forbid();
 
+        if (req.Name != null)
+        {
+            if (req.Name.Length is 0 or > 64)
+                return Results.BadRequest(new { error = "Name must be 1–64 characters." });
+            if (req.Name != room.Name && await db.Rooms.AnyAsync(r => r.Name == req.Name))
+                return Results.Conflict(new { error = "Room name already taken." });
+            room.Name = req.Name;
+        }
         if (req.Description != null) room.Description = req.Description;
         if (req.Visibility != null)
         {

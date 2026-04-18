@@ -1,4 +1,20 @@
-import type { AuthResponse, Dm, Friend, FriendRequest, Message, Room, RoomMember } from './types'
+import type { AuthResponse, Dm, Friend, FriendRequest, Message, Room, RoomBan, RoomMember, SessionDto, UserSearchResult } from './types'
+
+export async function uploadFile(path: string, file: File, content?: string): Promise<Message> {
+  const form = new FormData()
+  form.append('file', file)
+  if (content?.trim()) form.append('content', content.trim())
+
+  const headers = new Headers()
+  if (_access) headers.set('Authorization', `Bearer ${_access}`)
+
+  const res = await fetch(`/api${path}`, { method: 'POST', headers, body: form })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error(body.error ?? res.statusText)
+  }
+  return res.json()
+}
 
 // ── Token state (module-level, not persisted) ─────────────────────────────────
 let _access: string | null = null
@@ -83,6 +99,18 @@ export const authApi = {
   logout: (refreshToken: string) =>
     req('/auth/logout', { method: 'POST', ...json({ refreshToken }) }),
 
+  getSessions: () => req<SessionDto[]>('/auth/sessions'),
+  revokeSession: (id: string) => req(`/auth/sessions/${id}`, { method: 'DELETE' }),
+  deleteAccount: () => req('/auth/account', { method: 'DELETE' }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    req('/auth/password/change', { method: 'POST', ...json({ currentPassword, newPassword }) }),
+
+  requestPasswordReset: (email: string) =>
+    req('/auth/password/reset-request', { method: 'POST', ...json({ email }) }),
+
+  resetPassword: (email: string, token: string, newPassword: string) =>
+    req('/auth/password/reset', { method: 'POST', ...json({ email, token, newPassword }) }),
+
   refreshSession: async (): Promise<AuthResponse | null> => {
     if (!_refresh) return null
     const res = await fetch('/api/auth/refresh', {
@@ -97,7 +125,8 @@ export const authApi = {
 
 // ── Rooms ─────────────────────────────────────────────────────────────────────
 export const roomsApi = {
-  list: (page = 1) => req<Room[]>(`/rooms?page=${page}`),
+  list: (page = 1, search?: string) => req<Room[]>(`/rooms?page=${page}${search ? `&search=${encodeURIComponent(search)}` : ''}`),
+  mine: () => req<Room[]>('/rooms/mine'),
   get: (id: string) => req<Room>(`/rooms/${id}`),
   create: (name: string, description: string, visibility: 'public' | 'private') =>
     req<Room>('/rooms', { method: 'POST', ...json({ name, description, visibility }) }),
@@ -111,6 +140,21 @@ export const roomsApi = {
     if (beforeId) params.set('beforeId', beforeId)
     return req<Message[]>(`/rooms/${id}/messages?${params}`)
   },
+  kick: (roomId: string, userId: string) =>
+    req(`/rooms/${roomId}/members/${userId}`, { method: 'DELETE' }),
+  ban: (roomId: string, userId: string) =>
+    req(`/rooms/${roomId}/bans/${userId}`, { method: 'POST' }),
+  unban: (roomId: string, userId: string) =>
+    req(`/rooms/${roomId}/bans/${userId}`, { method: 'DELETE' }),
+  getBans: (roomId: string) => req<RoomBan[]>(`/rooms/${roomId}/bans`),
+  promoteAdmin: (roomId: string, userId: string) =>
+    req(`/rooms/${roomId}/admins/${userId}`, { method: 'POST' }),
+  demoteAdmin: (roomId: string, userId: string) =>
+    req(`/rooms/${roomId}/admins/${userId}`, { method: 'DELETE' }),
+  update: (id: string, patch: { name?: string; description?: string; visibility?: string }) =>
+    req<Room>(`/rooms/${id}`, { method: 'PATCH', ...json(patch) }),
+  invite: (roomId: string, userId: string) =>
+    req(`/rooms/${roomId}/invites`, { method: 'POST', ...json({ userId }) }),
 }
 
 // ── DMs ───────────────────────────────────────────────────────────────────────
@@ -123,6 +167,11 @@ export const dmsApi = {
     if (beforeId) params.set('beforeId', beforeId)
     return req<Message[]>(`/dms/${id}/messages?${params}`)
   },
+}
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+export const usersApi = {
+  search: (username: string) => req<UserSearchResult[]>(`/users/search?username=${encodeURIComponent(username)}`),
 }
 
 // ── Friends ───────────────────────────────────────────────────────────────────

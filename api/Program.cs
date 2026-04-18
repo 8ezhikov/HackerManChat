@@ -1,4 +1,6 @@
 using System.Text;
+using HackerManChat.Api.Attachments;
+using HackerManChat.Api.Users;
 using HackerManChat.Api.Auth;
 using HackerManChat.Api.Data;
 using HackerManChat.Api.Data.Entities;
@@ -24,7 +26,8 @@ builder.Services.AddIdentityCore<ApplicationUser>(opts =>
     opts.Password.RequireUppercase = false;
     opts.Password.RequireNonAlphanumeric = false;
 })
-.AddEntityFrameworkStores<AppDbContext>();
+.AddEntityFrameworkStores<AppDbContext>()
+.AddDefaultTokenProviders();
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opts =>
@@ -58,6 +61,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<TokenService>();
+builder.Services.AddScoped<MailService>();
 
 // Shared Redis connection used by both the SignalR backplane and PresenceHub
 var redis = ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis")!);
@@ -91,6 +95,8 @@ app.MapRoomEndpoints();
 app.MapRoomMessageEndpoints();
 app.MapFriendEndpoints();
 app.MapDmEndpoints();
+app.MapAttachmentEndpoints();
+app.MapUsersEndpoints();
 app.MapHub<ChatHub>("/hubs/chat");
 app.MapHub<PresenceHub>("/hubs/presence");
 

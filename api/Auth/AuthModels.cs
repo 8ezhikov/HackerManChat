@@ -19,3 +19,6 @@ public record AuthResponse(string AccessToken, string RefreshToken, DateTime Ref
 }
 
 public record SessionDto(Guid Id, string? DeviceInfo, string? IpAddress, DateTime CreatedAt, DateTime ExpiresAt);
+public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+public record PasswordResetRequestRequest(string Email);
+public record PasswordResetRequest(string Email, string Token, string NewPassword);

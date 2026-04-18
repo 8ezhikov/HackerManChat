@@ -88,10 +88,21 @@ export async function connectHubs(
   const presences = await presenceHub.invoke<Record<string, Presence>>('GetFriendPresences')
   onFriendPresences(presences)
 
-  // Send heartbeat every 30 s; isActive = document is not hidden
+  // AFK detection: track last user-activity timestamp
+  const AFK_MS = 60_000
+  let lastActivity = Date.now()
+  const onActivity = () => { lastActivity = Date.now() }
+  window.addEventListener('mousemove', onActivity, { passive: true })
+  window.addEventListener('keydown', onActivity, { passive: true })
+  window.addEventListener('click', onActivity, { passive: true })
+  window.addEventListener('scroll', onActivity, { passive: true })
+
+  // Send heartbeat every 30 s; isActive = tab visible AND active within last 60 s
   setInterval(() => {
-    if (presenceHub?.state === signalR.HubConnectionState.Connected)
-      presenceHub.invoke('Heartbeat', !document.hidden).catch(() => {})
+    if (presenceHub?.state === signalR.HubConnectionState.Connected) {
+      const isActive = !document.hidden && (Date.now() - lastActivity) < AFK_MS
+      presenceHub.invoke('Heartbeat', isActive).catch(() => {})
+    }
   }, 30_000)
 }
 

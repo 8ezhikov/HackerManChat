@@ -17,6 +17,10 @@ public static class AuthEndpoints
         g.MapPost("/logout", Logout).RequireAuthorization();
         g.MapGet("/sessions", GetSessions).RequireAuthorization();
         g.MapDelete("/sessions/{id:guid}", RevokeSession).RequireAuthorization();
+        g.MapDelete("/account", DeleteAccount).RequireAuthorization();
+        g.MapPost("/password/change", ChangePassword).RequireAuthorization();
+        g.MapPost("/password/reset-request", RequestPasswordReset);
+        g.MapPost("/password/reset", ResetPassword);
         return app;
     }
 
@@ -117,6 +121,97 @@ public static class AuthEndpoints
             return Results.NotFound();
         session.RevokedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> DeleteAccount(
+        ClaimsPrincipal principal,
+        UserManager<ApplicationUser> users,
+        AppDbContext db)
+    {
+        var userId = Guid.Parse(principal.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var user = await users.FindByIdAsync(userId.ToString());
+        if (user == null) return Results.NotFound();
+
+        // Delete owned rooms (cascades: messages, members, bans)
+        var ownedRooms = await db.Rooms.Where(r => r.OwnerId == userId).ToListAsync();
+        db.Rooms.RemoveRange(ownedRooms);
+        await db.SaveChangesAsync();
+
+        // Remove RoomBan rows where this user is recorded as the banner (Restrict FK)
+        var bannedBy = await db.RoomBans.Where(b => b.BannedById == userId).ToListAsync();
+        db.RoomBans.RemoveRange(bannedBy);
+        await db.SaveChangesAsync();
+
+        // Delete authored messages in other rooms (Restrict FK on AuthorId)
+        var roomMsgs = await db.Messages.Where(m => m.AuthorId == userId && m.RoomId != null).ToListAsync();
+        db.Messages.RemoveRange(roomMsgs);
+        await db.SaveChangesAsync();
+
+        // Delete personal chats (cascades DM messages)
+        var chats = await db.PersonalChats
+            .Where(pc => pc.User1Id == userId || pc.User2Id == userId)
+            .ToListAsync();
+        db.PersonalChats.RemoveRange(chats);
+        await db.SaveChangesAsync();
+
+        // Delete the user (cascades: Sessions, RoomMembers, Friendships, UserBans)
+        await users.DeleteAsync(user);
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> ChangePassword(
+        ChangePasswordRequest req,
+        ClaimsPrincipal principal,
+        UserManager<ApplicationUser> users)
+    {
+        if (string.IsNullOrWhiteSpace(req.NewPassword) || req.NewPassword.Length < 8)
+            return Results.BadRequest(new { error = "New password must be at least 8 characters." });
+
+        var userId = principal.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var user = await users.FindByIdAsync(userId);
+        if (user == null) return Results.NotFound();
+
+        var result = await users.ChangePasswordAsync(user, req.CurrentPassword, req.NewPassword);
+        if (!result.Succeeded)
+            return Results.BadRequest(new { error = result.Errors.FirstOrDefault()?.Description ?? "Failed to change password." });
+
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> RequestPasswordReset(
+        PasswordResetRequestRequest req,
+        UserManager<ApplicationUser> users,
+        MailService mail,
+        HttpContext http)
+    {
+        // Always return 204 to prevent user enumeration
+        var user = await users.FindByEmailAsync(req.Email);
+        if (user != null)
+        {
+            var token = await users.GeneratePasswordResetTokenAsync(user);
+            var link = $"{http.Request.Scheme}://{http.Request.Host}/reset-password" +
+                       $"?email={Uri.EscapeDataString(user.Email!)}&token={Uri.EscapeDataString(token)}";
+            await mail.SendPasswordResetAsync(user.Email!, link);
+        }
+        return Results.NoContent();
+    }
+
+    private static async Task<IResult> ResetPassword(
+        PasswordResetRequest req,
+        UserManager<ApplicationUser> users)
+    {
+        if (string.IsNullOrWhiteSpace(req.NewPassword) || req.NewPassword.Length < 8)
+            return Results.BadRequest(new { error = "New password must be at least 8 characters." });
+
+        var user = await users.FindByEmailAsync(req.Email);
+        if (user == null)
+            return Results.BadRequest(new { error = "Invalid or expired reset link." });
+
+        var result = await users.ResetPasswordAsync(user, req.Token, req.NewPassword);
+        if (!result.Succeeded)
+            return Results.BadRequest(new { error = result.Errors.FirstOrDefault()?.Description ?? "Invalid or expired reset link." });
+
         return Results.NoContent();
     }
 }

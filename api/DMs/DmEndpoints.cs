@@ -142,20 +142,21 @@ public static class DmEndpoints
         var query = db.Messages
             .Where(m => m.PersonalChatId == id && !m.IsDeleted)
             .Include(m => m.Author)
+            .Include(m => m.Attachments)
+            .Include(m => m.ReplyTo).ThenInclude(r => r!.Author)
             .AsQueryable();
 
         if (before.HasValue && beforeId.HasValue)
             query = query.Where(m => m.CreatedAt < before.Value ||
                                      (m.CreatedAt == before.Value && m.Id < beforeId.Value));
 
-        var messages = await query
+        var raw = await query
             .OrderByDescending(m => m.CreatedAt)
             .ThenByDescending(m => m.Id)
             .Take(limit)
-            .Select(m => m.ToDto())
             .ToListAsync();
 
-        return Results.Ok(messages);
+        return Results.Ok(raw.Select(m => m.ToDto()));
     }
 
     private static async Task<IResult> EditMessage(

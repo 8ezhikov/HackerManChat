@@ -58,6 +58,11 @@ public class ChatHub(AppDbContext db) : Hub
         db.Messages.Add(msg);
         await db.SaveChangesAsync();
         await db.Entry(msg).Reference(m => m.Author).LoadAsync();
+        if (msg.ReplyToId.HasValue)
+        {
+            await db.Entry(msg).Reference(m => m.ReplyTo).LoadAsync();
+            if (msg.ReplyTo != null) await db.Entry(msg.ReplyTo).Reference(r => r.Author).LoadAsync();
+        }
 
         await Clients.Group(HubConstants.RoomGroup(roomId))
             .SendAsync(HubConstants.RoomMessageReceived, roomId, msg.ToDto());
@@ -131,6 +136,11 @@ public class ChatHub(AppDbContext db) : Hub
         db.Messages.Add(msg);
         await db.SaveChangesAsync();
         await db.Entry(msg).Reference(m => m.Author).LoadAsync();
+        if (msg.ReplyToId.HasValue)
+        {
+            await db.Entry(msg).Reference(m => m.ReplyTo).LoadAsync();
+            if (msg.ReplyTo != null) await db.Entry(msg.ReplyTo).Reference(r => r.Author).LoadAsync();
+        }
 
         var dto = msg.ToDto();
         await Clients.Group(HubConstants.UserGroup(chat.User1Id)).SendAsync(HubConstants.DmMessageReceived, chatId, dto);

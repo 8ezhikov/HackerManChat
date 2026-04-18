@@ -1,25 +1,58 @@
-import { useState, type FormEvent } from 'react'
+import { useState, useEffect, type FormEvent } from 'react'
 import { authApi } from '../lib/api'
 import { useAuth } from '../store/auth'
 
+type Mode = 'login' | 'register' | 'forgot' | 'reset'
+
 export default function Auth() {
-  const [mode, setMode] = useState<'login' | 'register'>('login')
+  const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [resetToken, setResetToken] = useState('')
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
   const setAuth = useAuth((s) => s.setAuth)
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const token = params.get('token')
+    const emailParam = params.get('email')
+    if (token && emailParam) {
+      setResetToken(token)
+      setEmail(emailParam)
+      setMode('reset')
+      // Clean URL without reload
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
+  function reset() { setError(''); setInfo('') }
+
   async function submit(e: FormEvent) {
     e.preventDefault()
-    setError('')
+    reset()
     setLoading(true)
     try {
-      const res = mode === 'login'
-        ? await authApi.login(email, password)
-        : await authApi.register(email, username, password)
-      setAuth(res.user, res.accessToken, res.refreshToken)
+      if (mode === 'login') {
+        const res = await authApi.login(email, password)
+        setAuth(res.user, res.accessToken, res.refreshToken)
+      } else if (mode === 'register') {
+        const res = await authApi.register(email, username, password)
+        setAuth(res.user, res.accessToken, res.refreshToken)
+      } else if (mode === 'forgot') {
+        await authApi.requestPasswordReset(email)
+        setInfo('If that email is registered, a reset link has been sent. Check your inbox (or mailhog on :8025).')
+      } else if (mode === 'reset') {
+        await authApi.resetPassword(email, resetToken, newPassword)
+        setInfo('Password reset! You can now sign in.')
+        setMode('login')
+        setEmail('')
+        setResetToken('')
+        setNewPassword('')
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
@@ -27,23 +60,37 @@ export default function Auth() {
     }
   }
 
+  const titles: Record<Mode, string> = {
+    login: 'Welcome back.',
+    register: 'Create an account.',
+    forgot: 'Reset your password.',
+    reset: 'Choose a new password.',
+  }
+
+  const buttonLabels: Record<Mode, string> = {
+    login: 'Sign in',
+    register: 'Create account',
+    forgot: 'Send reset link',
+    reset: 'Reset password',
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center">
       <div className="w-full max-w-sm bg-gray-900 rounded-2xl p-8 shadow-xl">
         <h1 className="text-2xl font-bold text-white mb-1">HackerManChat</h1>
-        <p className="text-gray-400 text-sm mb-6">
-          {mode === 'login' ? 'Welcome back.' : 'Create an account.'}
-        </p>
+        <p className="text-gray-400 text-sm mb-6">{titles[mode]}</p>
 
         <form onSubmit={submit} className="space-y-4">
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+          {mode !== 'reset' && (
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          )}
           {mode === 'register' && (
             <input
               type="text"
@@ -54,14 +101,26 @@ export default function Auth() {
               className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 outline-none focus:ring-2 focus:ring-indigo-500"
             />
           )}
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+          {(mode === 'login' || mode === 'register') && (
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          )}
+          {mode === 'reset' && (
+            <input
+              type="password"
+              placeholder="New password (min 8 chars)"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          )}
           {error && (
             <ul className="space-y-0.5">
               {error.split('\n').map((e, i) => (
@@ -69,24 +128,34 @@ export default function Auth() {
               ))}
             </ul>
           )}
+          {info && <p className="text-green-400 text-xs">{info}</p>}
           <button
             type="submit"
             disabled={loading}
             className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm transition-colors"
           >
-            {loading ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}
+            {loading ? 'Please wait…' : buttonLabels[mode]}
           </button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-gray-500">
-          {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-          <button
-            onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }}
-            className="text-indigo-400 hover:text-indigo-300"
-          >
-            {mode === 'login' ? 'Register' : 'Sign in'}
-          </button>
-        </p>
+        <div className="mt-4 text-center text-sm text-gray-500 space-y-1">
+          {mode === 'login' && (
+            <>
+              <p>
+                {"Don't have an account? "}
+                <button onClick={() => { setMode('register'); reset() }} className="text-indigo-400 hover:text-indigo-300">Register</button>
+              </p>
+              <p>
+                <button onClick={() => { setMode('forgot'); reset() }} className="text-indigo-400 hover:text-indigo-300">Forgot password?</button>
+              </p>
+            </>
+          )}
+          {(mode === 'register' || mode === 'forgot' || mode === 'reset') && (
+            <p>
+              <button onClick={() => { setMode('login'); reset() }} className="text-indigo-400 hover:text-indigo-300">Back to sign in</button>
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )

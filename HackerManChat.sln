@@ -1,0 +1,29 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "api", "api", "{D82C56D6-B2CD-F611-9E31-04638F7EC30E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HackerManChat.Api", "api\HackerManChat.Api.csproj", "{116677A6-A8AA-C8F2-6F8F-BC8B2CE92282}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{116677A6-A8AA-C8F2-6F8F-BC8B2CE92282}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{116677A6-A8AA-C8F2-6F8F-BC8B2CE92282}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{116677A6-A8AA-C8F2-6F8F-BC8B2CE92282}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{116677A6-A8AA-C8F2-6F8F-BC8B2CE92282}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{116677A6-A8AA-C8F2-6F8F-BC8B2CE92282} = {D82C56D6-B2CD-F611-9E31-04638F7EC30E}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {75B6E564-D919-400C-AA3E-7A9B3B00101C}
+	EndGlobalSection
+EndGlobal

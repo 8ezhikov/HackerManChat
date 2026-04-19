@@ -1,4 +1,4 @@
-import type { AuthResponse, Dm, Friend, FriendRequest, Message, Room, RoomBan, RoomMember, SessionDto, UserSearchResult } from './types'
+import type { AuthResponse, BannedUserDto, Dm, Friend, FriendRequest, Message, Room, RoomBan, RoomMember, SessionDto, UserSearchResult } from './types'
 
 export async function uploadFile(path: string, file: File, content?: string): Promise<Message> {
   const form = new FormData()
@@ -140,6 +140,12 @@ export const roomsApi = {
     if (beforeId) params.set('beforeId', beforeId)
     return req<Message[]>(`/rooms/${id}/messages?${params}`)
   },
+  sendMessage: (id: string, content: string, replyToId?: string) =>
+    req<Message>(`/rooms/${id}/messages`, { method: 'POST', ...json({ content, replyToId: replyToId ?? null }) }),
+  editMessage: (roomId: string, msgId: string, content: string) =>
+    req<Message>(`/rooms/${roomId}/messages/${msgId}`, { method: 'PATCH', ...json({ content }) }),
+  deleteMessage: (roomId: string, msgId: string) =>
+    req(`/rooms/${roomId}/messages/${msgId}`, { method: 'DELETE' }),
   kick: (roomId: string, userId: string) =>
     req(`/rooms/${roomId}/members/${userId}`, { method: 'DELETE' }),
   ban: (roomId: string, userId: string) =>
@@ -167,18 +173,27 @@ export const dmsApi = {
     if (beforeId) params.set('beforeId', beforeId)
     return req<Message[]>(`/dms/${id}/messages?${params}`)
   },
+  sendMessage: (id: string, content: string, replyToId?: string) =>
+    req<Message>(`/dms/${id}/messages`, { method: 'POST', ...json({ content, replyToId: replyToId ?? null }) }),
+  editMessage: (chatId: string, msgId: string, content: string) =>
+    req<Message>(`/dms/${chatId}/messages/${msgId}`, { method: 'PATCH', ...json({ content }) }),
+  deleteMessage: (chatId: string, msgId: string) =>
+    req(`/dms/${chatId}/messages/${msgId}`, { method: 'DELETE' }),
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 export const usersApi = {
   search: (username: string) => req<UserSearchResult[]>(`/users/search?username=${encodeURIComponent(username)}`),
+  banUser: (userId: string) => req(`/users/bans/${userId}`, { method: 'POST' }),
+  unbanUser: (userId: string) => req(`/users/bans/${userId}`, { method: 'DELETE' }),
+  getBans: () => req<BannedUserDto[]>('/users/bans'),
 }
 
 // ── Friends ───────────────────────────────────────────────────────────────────
 export const friendsApi = {
   list: () => req<Friend[]>('/friends'),
   requests: () => req<FriendRequest[]>('/friends/requests'),
-  send: (userId: string) => req('/friends/requests', { method: 'POST', ...json({ userId }) }),
+  send: (userId: string, message?: string) => req('/friends/requests', { method: 'POST', ...json({ userId, message: message || undefined }) }),
   accept: (requesterId: string) => req(`/friends/requests/${requesterId}/accept`, { method: 'POST' }),
   decline: (requesterId: string) => req(`/friends/requests/${requesterId}`, { method: 'DELETE' }),
   unfriend: (userId: string) => req(`/friends/${userId}`, { method: 'DELETE' }),

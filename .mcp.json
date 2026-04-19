@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "node",
+      "args": ["tests/e2e/mcp-server.js"],
+      "disabled": false
+    }
+  }
+}

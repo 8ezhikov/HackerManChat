@@ -1,6 +1,6 @@
 import * as signalR from '@microsoft/signalr'
 import type { Message, Presence } from './types'
-import { getAccessToken } from './api'
+import { getAccessToken, roomsApi, dmsApi } from './api'
 
 // ── Hub instances ─────────────────────────────────────────────────────────────
 let chatHub: signalR.HubConnection | null = null
@@ -17,6 +17,48 @@ export const handlers = {
   onPresenceChanged: (_userId: string, _status: Presence) => {},
 }
 
+// ── Tab leader election ───────────────────────────────────────────────────────
+// Only the leader tab holds SignalR connections. Followers receive real-time
+// events via BroadcastChannel and use REST endpoints for sends.
+
+const TAB_ID = crypto.randomUUID()
+const LEADER_KEY = 'hmc-leader'
+const LEADER_TS_KEY = 'hmc-leader-ts'
+const LEADER_TTL = 4_000        // leader considered dead after 4 s without refresh
+const LEADER_REFRESH_MS = 1_500 // leader refreshes its timestamp every 1.5 s
+const FOLLOWER_POLL_MS = 2_000  // followers poll for a dead leader every 2 s
+
+let isLeader = false
+let leaderRefreshTimer: ReturnType<typeof setInterval> | null = null
+let followerPollTimer: ReturnType<typeof setInterval> | null = null
+
+let cachedPresences: Record<string, Presence> = {}
+let storedPresenceCb: ((p: Record<string, Presence>) => void) | null = null
+let pendingBootstrap: ((p: Record<string, Presence>) => void) | null = null
+
+function tryClaimLeadership(): boolean {
+  const storedId = localStorage.getItem(LEADER_KEY)
+  const storedTs = Number(localStorage.getItem(LEADER_TS_KEY) ?? '0')
+  if (storedId && storedId !== TAB_ID && Date.now() - storedTs < LEADER_TTL) {
+    return false
+  }
+  localStorage.setItem(LEADER_KEY, TAB_ID)
+  localStorage.setItem(LEADER_TS_KEY, String(Date.now()))
+  return true
+}
+
+function resignLeadership() {
+  if (!isLeader) return
+  isLeader = false
+  if (leaderRefreshTimer) { clearInterval(leaderRefreshTimer); leaderRefreshTimer = null }
+  if (localStorage.getItem(LEADER_KEY) === TAB_ID) {
+    localStorage.removeItem(LEADER_KEY)
+    localStorage.removeItem(LEADER_TS_KEY)
+  }
+}
+
+window.addEventListener('beforeunload', () => { resignLeadership() })
+
 // ── BroadcastChannel cross-tab sync ──────────────────────────────────────────
 const bc = new BroadcastChannel('hmc-sync')
 
@@ -28,17 +70,31 @@ bc.onmessage = (e) => {
   else if (type === 'DmMessageEdited') handlers.onDmMessageEdited(d.chatId, d.msg)
   else if (type === 'RoomMessageDeleted') handlers.onRoomMessageDeleted(d.roomId, d.msgId)
   else if (type === 'DmMessageDeleted') handlers.onDmMessageDeleted(d.chatId, d.msgId)
-  else if (type === 'PresenceChanged') handlers.onPresenceChanged(d.userId, d.status)
+  else if (type === 'PresenceChanged') {
+    handlers.onPresenceChanged(d.userId, d.status as Presence)
+    cachedPresences[d.userId] = d.status as Presence
+  }
+  // Leader sends full snapshot on connect; followers call it for initial bootstrap
+  else if (type === 'PresenceBootstrap') {
+    cachedPresences = d.presences as Record<string, Presence>
+    if (pendingBootstrap) { pendingBootstrap(cachedPresences); pendingBootstrap = null }
+  }
+  // New follower tab requests the current presence snapshot from the leader
+  else if (type === 'RequestPresenceBootstrap' && isLeader) {
+    bc.postMessage({ type: 'PresenceBootstrap', presences: cachedPresences })
+  }
+  // Follower joined a room mid-session; relay to the leader's SignalR connection
+  else if (type === 'JoinRoom' && isLeader) {
+    chatHub?.invoke('JoinRoomGroup', d.roomId).catch(() => {})
+  }
 }
 
 function broadcast(payload: Record<string, unknown>) {
   try { bc.postMessage(payload) } catch { /* tab closing */ }
 }
 
-// ── Connect ───────────────────────────────────────────────────────────────────
-export async function connectHubs(
-  onFriendPresences: (p: Record<string, Presence>) => void,
-) {
+// ── Leader path ───────────────────────────────────────────────────────────────
+async function connectAsLeader(onFriendPresences: (p: Record<string, Presence>) => void) {
   chatHub = new signalR.HubConnectionBuilder()
     .withUrl('/hubs/chat', { accessTokenFactory: () => getAccessToken() ?? '' })
     .withAutomaticReconnect()
@@ -75,20 +131,25 @@ export async function connectHubs(
     handlers.onDmMessageDeleted(chatId, msgId)
     broadcast({ type: 'DmMessageDeleted', chatId, msgId })
   })
-
   presenceHub.on('PresenceChanged', (userId: string, status: Presence) => {
     handlers.onPresenceChanged(userId, status)
+    cachedPresences[userId] = status
     broadcast({ type: 'PresenceChanged', userId, status })
   })
 
   await chatHub.start()
   await presenceHub.start()
 
-  // Bootstrap friend presences
   const presences = await presenceHub.invoke<Record<string, Presence>>('GetFriendPresences')
+  cachedPresences = presences
   onFriendPresences(presences)
+  broadcast({ type: 'PresenceBootstrap', presences })
 
-  // AFK detection: track last user-activity timestamp
+  leaderRefreshTimer = setInterval(() => {
+    localStorage.setItem(LEADER_TS_KEY, String(Date.now()))
+  }, LEADER_REFRESH_MS)
+
+  // AFK detection — only the leader sends presence heartbeats to the server
   const AFK_MS = 60_000
   let lastActivity = Date.now()
   const onActivity = () => { lastActivity = Date.now() }
@@ -97,7 +158,6 @@ export async function connectHubs(
   window.addEventListener('click', onActivity, { passive: true })
   window.addEventListener('scroll', onActivity, { passive: true })
 
-  // Send heartbeat every 30 s; isActive = tab visible AND active within last 60 s
   setInterval(() => {
     if (presenceHub?.state === signalR.HubConnectionState.Connected) {
       const isActive = !document.hidden && (Date.now() - lastActivity) < AFK_MS
@@ -106,7 +166,41 @@ export async function connectHubs(
   }, 30_000)
 }
 
+// ── Follower path ─────────────────────────────────────────────────────────────
+function connectAsFollower(onFriendPresences: (p: Record<string, Presence>) => void) {
+  pendingBootstrap = onFriendPresences
+  broadcast({ type: 'RequestPresenceBootstrap' })
+
+  // Fall back to cached presences if the leader doesn't respond within 500 ms
+  setTimeout(() => {
+    if (pendingBootstrap) { onFriendPresences(cachedPresences); pendingBootstrap = null }
+  }, 500)
+
+  followerPollTimer = setInterval(async () => {
+    if (isLeader) { clearInterval(followerPollTimer!); followerPollTimer = null; return }
+    if (tryClaimLeadership()) {
+      isLeader = true
+      clearInterval(followerPollTimer!); followerPollTimer = null
+      if (storedPresenceCb) await connectAsLeader(storedPresenceCb)
+    }
+  }, FOLLOWER_POLL_MS)
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+export async function connectHubs(onFriendPresences: (p: Record<string, Presence>) => void) {
+  storedPresenceCb = onFriendPresences
+  isLeader = tryClaimLeadership()
+
+  if (isLeader) {
+    await connectAsLeader(onFriendPresences)
+  } else {
+    connectAsFollower(onFriendPresences)
+  }
+}
+
 export async function disconnectHubs() {
+  resignLeadership()
+  if (followerPollTimer) { clearInterval(followerPollTimer); followerPollTimer = null }
   await chatHub?.stop()
   await presenceHub?.stop()
   chatHub = null
@@ -114,19 +208,42 @@ export async function disconnectHubs() {
 }
 
 // ── Chat hub methods ──────────────────────────────────────────────────────────
+// Leader uses SignalR invoke; followers fall back to REST. Either way the server
+// broadcasts the resulting event back through SignalR → leader → BroadcastChannel.
 export const chat = {
-  joinRoom: (roomId: string) =>
-    chatHub?.invoke('JoinRoomGroup', roomId).catch(console.error),
+  joinRoom: (roomId: string) => {
+    if (chatHub?.state === signalR.HubConnectionState.Connected)
+      return chatHub.invoke('JoinRoomGroup', roomId).catch(() => {})
+    broadcast({ type: 'JoinRoom', roomId })
+  },
+
   sendRoom: (roomId: string, content: string, replyToId?: string) =>
-    chatHub!.invoke('SendRoomMessage', roomId, content, replyToId ?? null),
+    chatHub?.state === signalR.HubConnectionState.Connected
+      ? chatHub.invoke('SendRoomMessage', roomId, content, replyToId ?? null)
+      : roomsApi.sendMessage(roomId, content, replyToId),
+
   sendDm: (chatId: string, content: string, replyToId?: string) =>
-    chatHub!.invoke('SendDmMessage', chatId, content, replyToId ?? null),
+    chatHub?.state === signalR.HubConnectionState.Connected
+      ? chatHub.invoke('SendDmMessage', chatId, content, replyToId ?? null)
+      : dmsApi.sendMessage(chatId, content, replyToId),
+
   editRoom: (roomId: string, msgId: string, content: string) =>
-    chatHub!.invoke('EditRoomMessage', roomId, msgId, content),
+    chatHub?.state === signalR.HubConnectionState.Connected
+      ? chatHub.invoke('EditRoomMessage', roomId, msgId, content)
+      : roomsApi.editMessage(roomId, msgId, content),
+
   editDm: (chatId: string, msgId: string, content: string) =>
-    chatHub!.invoke('EditDmMessage', chatId, msgId, content),
+    chatHub?.state === signalR.HubConnectionState.Connected
+      ? chatHub.invoke('EditDmMessage', chatId, msgId, content)
+      : dmsApi.editMessage(chatId, msgId, content),
+
   deleteRoom: (roomId: string, msgId: string) =>
-    chatHub!.invoke('DeleteRoomMessage', roomId, msgId),
+    chatHub?.state === signalR.HubConnectionState.Connected
+      ? chatHub.invoke('DeleteRoomMessage', roomId, msgId)
+      : roomsApi.deleteMessage(roomId, msgId),
+
   deleteDm: (chatId: string, msgId: string) =>
-    chatHub!.invoke('DeleteDmMessage', chatId, msgId),
+    chatHub?.state === signalR.HubConnectionState.Connected
+      ? chatHub.invoke('DeleteDmMessage', chatId, msgId)
+      : dmsApi.deleteMessage(chatId, msgId),
 }

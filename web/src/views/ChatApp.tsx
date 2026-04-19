@@ -2,6 +2,7 @@ import {
   useState, useEffect, useRef, useCallback, type KeyboardEvent,
 } from 'react'
 import { roomsApi, dmsApi, friendsApi, usersApi, authApi, uploadFile, getAccessToken } from '../lib/api'
+import type { BannedUserDto } from '../lib/types'
 import { connectHubs, disconnectHubs, handlers, chat } from '../lib/hubs'
 import { useAuth } from '../store/auth'
 import { usePresence } from '../store/presence'
@@ -18,7 +19,7 @@ function PresenceDot({ userId }: { userId: string }) {
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 function Sidebar({
   myRooms, dms, friends,
-  active, onSelect, onOpenDm, onBrowse, onSettings, onAddFriend, unread,
+  active, onSelect, onOpenDm, onBrowse, onSettings, onAddFriend, onBanFriend, unread,
 }: {
   myRooms: Room[]
   dms: Dm[]
@@ -29,12 +30,22 @@ function Sidebar({
   onBrowse: () => void
   onSettings: () => void
   onAddFriend: () => void
+  onBanFriend: (userId: string) => void
   unread: Record<string, number>
 }) {
   const { user, logout } = useAuth()
+  const [hoveredFriend, setHoveredFriend] = useState<string | null>(null)
+  const [roomsExpanded, setRoomsExpanded] = useState(true)
 
   const isActive = (c: ActiveChat) =>
     active?.type === c.type && active?.id === c.id
+
+  const activeRoom = active?.type === 'room' ? active : null
+
+  // Auto-collapse room list when entering a room
+  useEffect(() => {
+    if (active?.type === 'room') setRoomsExpanded(false)
+  }, [active?.type === 'room' && active?.id])
 
   return (
     <div className="w-60 bg-gray-900 flex flex-col shrink-0 overflow-y-auto">
@@ -44,9 +55,31 @@ function Sidebar({
         <button onClick={logout} className="text-gray-500 hover:text-gray-300 text-xs">out</button>
       </div>
 
-      {/* Rooms */}
-      <Section label="Rooms" action={{ label: 'Browse', onClick: onBrowse }}>
-        {myRooms.map((r) => (
+      {/* Rooms — accordion */}
+      <div className="mt-4">
+        <div className="flex items-center justify-between px-4 mb-1">
+          <button
+            onClick={() => setRoomsExpanded((x) => !x)}
+            className="flex items-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wider hover:text-gray-300"
+          >
+            <span className={`transition-transform ${roomsExpanded ? 'rotate-90' : ''}`}>▶</span>
+            Rooms
+          </button>
+          <button onClick={onBrowse} className="text-gray-500 hover:text-gray-300 text-xs">Browse</button>
+        </div>
+
+        {/* Collapsed: show only the active room */}
+        {!roomsExpanded && activeRoom && (
+          <NavItem
+            label={`# ${activeRoom.name}`}
+            active
+            onClick={() => {}}
+            badge={unread[activeRoom.id]}
+          />
+        )}
+
+        {/* Expanded: show all rooms */}
+        {roomsExpanded && myRooms.map((r) => (
           <NavItem
             key={r.id}
             label={`# ${r.name}`}
@@ -55,7 +88,7 @@ function Sidebar({
             badge={unread[r.id]}
           />
         ))}
-      </Section>
+      </div>
 
       {/* DMs */}
       <Section label="Direct Messages">
@@ -63,8 +96,8 @@ function Sidebar({
           <NavItem
             key={dm.id}
             label={dm.otherDisplayName}
-            active={isActive({ type: 'dm', id: dm.id, otherUsername: dm.otherUsername })}
-            onClick={() => onSelect({ type: 'dm', id: dm.id, otherUsername: dm.otherUsername })}
+            active={isActive({ type: 'dm', id: dm.id, otherUsername: dm.otherUsername, isFrozen: dm.isFrozen })}
+            onClick={() => onSelect({ type: 'dm', id: dm.id, otherUsername: dm.otherUsername, isFrozen: dm.isFrozen })}
             right={<PresenceDot userId={dm.otherUserId} />}
             badge={unread[dm.id]}
           />
@@ -74,13 +107,30 @@ function Sidebar({
       {/* Friends */}
       <Section label="Friends" action={{ label: '+', onClick: onAddFriend }}>
         {friends.map((f) => (
-          <NavItem
+          <div
             key={f.userId}
-            label={f.displayName}
-            active={false}
-            onClick={() => onOpenDm(f.userId)}
-            right={<PresenceDot userId={f.userId} />}
-          />
+            className="relative"
+            onMouseEnter={() => setHoveredFriend(f.userId)}
+            onMouseLeave={() => setHoveredFriend(null)}
+          >
+            <NavItem
+              label={f.displayName}
+              active={false}
+              onClick={() => onOpenDm(f.userId)}
+              right={hoveredFriend === f.userId
+                ? (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onBanFriend(f.userId) }}
+                    title="Block user"
+                    className="text-xs text-gray-600 hover:text-red-400 px-1"
+                  >
+                    ✕
+                  </button>
+                )
+                : <PresenceDot userId={f.userId} />
+              }
+            />
+          </div>
         ))}
       </Section>
 
@@ -176,10 +226,11 @@ function AttachmentList({ attachments }: { attachments: AttachmentDto[] }) {
 
 // ── Message list ──────────────────────────────────────────────────────────────
 function MessageItem({
-  msg, isMe, onEdit, onDelete, onReply,
+  msg, isMe, canDelete, onEdit, onDelete, onReply,
 }: {
   msg: Message
   isMe: boolean
+  canDelete: boolean
   onEdit: (id: string, content: string) => void
   onDelete: (id: string) => void
   onReply: (msg: Message) => void
@@ -227,7 +278,7 @@ function MessageItem({
               Edit
             </button>
           )}
-          {isMe && (
+          {canDelete && (
             <button
               onClick={() => onDelete(msg.id)}
               className="text-xs text-gray-500 hover:text-red-400 px-1.5 py-0.5 rounded hover:bg-gray-700"
@@ -256,9 +307,28 @@ function ManageRoomModal({
   onRoomDeleted: () => void
   onClose: () => void
 }) {
-  const [tab, setTab] = useState<'admins' | 'invites' | 'settings'>('admins')
+  const [tab, setTab] = useState<'members' | 'admins' | 'bans' | 'invites' | 'settings'>('members')
   const isOwner = room.ownerId === myId
   const isAdmin = members.find((m) => m.userId === myId)?.role === 'admin'
+
+  const canActOnMember = (m: RoomMember) =>
+    isAdmin && m.userId !== myId && m.userId !== room.ownerId &&
+    !(m.role === 'admin' && !isOwner)
+
+  async function modalBan(m: RoomMember) {
+    try {
+      await roomsApi.ban(room.id, m.userId)
+      onMembersChange(members.filter((x) => x.userId !== m.userId))
+      onBansChange([...bans, { userId: m.userId, username: m.username, bannedById: myId, createdAt: new Date().toISOString() }])
+    } catch (err) { console.error(err) }
+  }
+
+  async function modalUnban(userId: string) {
+    try {
+      await roomsApi.unban(room.id, userId)
+      onBansChange(bans.filter((b) => b.userId !== userId))
+    } catch (err) { console.error(err) }
+  }
 
   // Admins tab state
   async function toggleAdmin(member: RoomMember) {
@@ -335,11 +405,73 @@ function ManageRoomModal({
           <button onClick={onClose} className="text-gray-500 hover:text-gray-300">✕</button>
         </div>
 
-        <div className="flex gap-1 border-b border-gray-800">
+        <div className="flex gap-1 border-b border-gray-800 flex-wrap">
+          <Tab id="members" label="Members" />
           <Tab id="admins" label="Admins" />
+          {isAdmin && <Tab id="bans" label="Banned" />}
           {(isAdmin || isOwner) && <Tab id="invites" label="Invitations" />}
           {isOwner && <Tab id="settings" label="Settings" />}
         </div>
+
+        {/* Members tab */}
+        {tab === 'members' && (
+          <div className="space-y-1 max-h-64 overflow-y-auto">
+            {members.map((m) => (
+              <div key={m.userId} className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2">
+                <PresenceDot userId={m.userId} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm truncate">{m.displayName}</p>
+                  <p className="text-xs text-gray-500">
+                    {m.userId === room.ownerId ? 'owner' : m.role}
+                  </p>
+                </div>
+                {canActOnMember(m) && (
+                  <div className="flex gap-1">
+                    {isOwner && (
+                      <button
+                        onClick={() => toggleAdmin(m)}
+                        className="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded"
+                      >
+                        {m.role === 'admin' ? 'Demote' : 'Promote'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => modalBan(m)}
+                      className="text-xs bg-red-900 hover:bg-red-800 text-red-300 px-2 py-1 rounded"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Bans tab */}
+        {tab === 'bans' && (
+          <div className="space-y-1 max-h-64 overflow-y-auto">
+            {bans.length === 0
+              ? <p className="text-gray-500 text-sm text-center py-4">No banned users.</p>
+              : bans.map((b) => (
+                <div key={b.userId} className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm">{b.username}</p>
+                    <p className="text-xs text-gray-500">
+                      Banned by {members.find((m) => m.userId === b.bannedById)?.displayName ?? 'admin'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => modalUnban(b.userId)}
+                    className="text-xs bg-gray-700 hover:bg-gray-600 text-green-400 px-2 py-1 rounded"
+                  >
+                    Unban
+                  </button>
+                </div>
+              ))
+            }
+          </div>
+        )}
 
         {/* Admins tab */}
         {tab === 'admins' && (
@@ -495,29 +627,24 @@ function ManageRoomModal({
 
 // ── Member panel (with moderation) ───────────────────────────────────────────
 function MemberPanel({
-  roomId, members, bans, ownerId, myId, onMembersChange, onBansChange, onManage,
+  roomId, members, bans, ownerId, myId, friendIds, onMembersChange, onBansChange, onManage,
 }: {
   roomId: string
   members: RoomMember[]
   bans: RoomBan[]
   ownerId: string | null
   myId: string
+  friendIds: Set<string>
   onMembersChange: (m: RoomMember[]) => void
   onBansChange: (b: RoomBan[]) => void
   onManage: () => void
 }) {
   const [tab, setTab] = useState<'members' | 'bans'>('members')
   const [hovered, setHovered] = useState<string | null>(null)
+  const [requested, setRequested] = useState<Set<string>>(new Set())
 
   const myRole = members.find((m) => m.userId === myId)?.role ?? 'member'
   const isAdmin = myRole === 'admin'
-
-  async function kick(userId: string) {
-    try {
-      await roomsApi.kick(roomId, userId)
-      onMembersChange(members.filter((m) => m.userId !== userId))
-    } catch (err) { console.error(err) }
-  }
 
   async function ban(member: RoomMember) {
     try {
@@ -543,6 +670,13 @@ function MemberPanel({
         await roomsApi.promoteAdmin(roomId, member.userId)
         onMembersChange(members.map((m) => m.userId === member.userId ? { ...m, role: 'admin' } : m))
       }
+    } catch (err) { console.error(err) }
+  }
+
+  async function addFriend(userId: string) {
+    try {
+      await friendsApi.send(userId)
+      setRequested((s) => new Set(s).add(userId))
     } catch (err) { console.error(err) }
   }
 
@@ -598,31 +732,38 @@ function MemberPanel({
               : m.role === 'admin'
                 ? <span className="text-xs text-indigo-400 shrink-0">admin</span>
                 : null}
-            {canActOn(m) && hovered === m.userId && (
+            {hovered === m.userId && (
               <div className="flex gap-1 shrink-0">
-                {myId === ownerId && (
+                {m.userId !== myId && !friendIds.has(m.userId) && (
                   <button
-                    onClick={() => toggleAdmin(m)}
-                    title={m.role === 'admin' ? 'Demote' : 'Make admin'}
-                    className="text-xs text-gray-500 hover:text-indigo-400 px-1 rounded hover:bg-gray-700"
+                    onClick={() => addFriend(m.userId)}
+                    disabled={requested.has(m.userId)}
+                    title="Add friend"
+                    className="text-xs text-gray-500 hover:text-indigo-400 disabled:text-gray-700 px-1 rounded hover:bg-gray-700"
                   >
-                    {m.role === 'admin' ? '↓' : '↑'}
+                    {requested.has(m.userId) ? '✓' : '+'}
                   </button>
                 )}
-                <button
-                  onClick={() => kick(m.userId)}
-                  title="Kick"
-                  className="text-xs text-gray-500 hover:text-yellow-400 px-1 rounded hover:bg-gray-700"
-                >
-                  kick
-                </button>
-                <button
-                  onClick={() => ban(m)}
-                  title="Ban"
-                  className="text-xs text-gray-500 hover:text-red-400 px-1 rounded hover:bg-gray-700"
-                >
-                  ban
-                </button>
+                {canActOn(m) && (
+                  <>
+                    {myId === ownerId && (
+                      <button
+                        onClick={() => toggleAdmin(m)}
+                        title={m.role === 'admin' ? 'Demote' : 'Make admin'}
+                        className="text-xs text-gray-500 hover:text-indigo-400 px-1 rounded hover:bg-gray-700"
+                      >
+                        {m.role === 'admin' ? '↓' : '↑'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => ban(m)}
+                      title="Remove from room"
+                      className="text-xs text-gray-500 hover:text-red-400 px-1 rounded hover:bg-gray-700"
+                    >
+                      ✕
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -650,10 +791,11 @@ function MemberPanel({
 
 // ── Chat area ─────────────────────────────────────────────────────────────────
 function ChatArea({
-  chat: activeChat, userId, onRoomUpdated, onRoomDeleted,
+  chat: activeChat, userId, friendIds, onRoomUpdated, onRoomDeleted,
 }: {
   chat: ActiveChat
   userId: string
+  friendIds: Set<string>
   onRoomUpdated?: (room: Room) => void
   onRoomDeleted?: (roomId: string) => void
 }) {
@@ -677,6 +819,7 @@ function ChatArea({
   const atBottomRef = useRef(true)
 
   const isRoom = activeChat.type === 'room'
+  const isFrozen = activeChat.type === 'dm' && activeChat.isFrozen === true
 
   // Load history when chat changes
   useEffect(() => {
@@ -880,16 +1023,21 @@ function ChatArea({
         {/* Message list */}
         <div ref={listRef} className="flex-1 overflow-y-auto py-4 space-y-0.5">
           {loadingMore && <p className="text-center text-xs text-gray-600 py-2">Loading…</p>}
-          {messages.map((msg) => (
-            <MessageItem
-              key={msg.id}
-              msg={msg}
-              isMe={msg.authorId === userId}
-              onEdit={(id, content) => { setEditingId(id); setEditContent(content) }}
-              onDelete={deleteMsg}
-              onReply={startReply}
-            />
-          ))}
+          {messages.map((msg) => {
+            const isMe = msg.authorId === userId
+            const isAdmin = isRoom && members.find((m) => m.userId === userId)?.role === 'admin'
+            return (
+              <MessageItem
+                key={msg.id}
+                msg={msg}
+                isMe={isMe}
+                canDelete={isMe || (isRoom && !!isAdmin)}
+                onEdit={(id, content) => { setEditingId(id); setEditContent(content) }}
+                onDelete={deleteMsg}
+                onReply={startReply}
+              />
+            )
+          })}
           <div ref={bottomRef} />
         </div>
 
@@ -908,8 +1056,15 @@ function ChatArea({
           </div>
         )}
 
+        {/* Frozen DM banner */}
+        {isFrozen && (
+          <div className="mx-4 mb-2 px-4 py-2 bg-gray-800 rounded-lg text-xs text-gray-500 text-center">
+            This conversation is frozen — messaging is disabled.
+          </div>
+        )}
+
         {/* Input */}
-        <div className="px-4 pb-4 shrink-0">
+        <div className={`px-4 pb-4 shrink-0 ${isFrozen ? 'pointer-events-none opacity-40' : ''}`}>
           <input
             ref={fileInputRef}
             type="file"
@@ -964,6 +1119,7 @@ function ChatArea({
           bans={bans}
           ownerId={currentRoom?.ownerId ?? null}
           myId={userId}
+          friendIds={friendIds}
           onMembersChange={setMembers}
           onBansChange={setBans}
           onManage={() => setManaging(true)}
@@ -992,6 +1148,7 @@ function ChatArea({
 function AccountModal({ onClose }: { onClose: () => void }) {
   const { logout } = useAuth()
   const [sessions, setSessions] = useState<SessionDto[]>([])
+  const [blocked, setBlocked] = useState<BannedUserDto[]>([])
   const [confirm, setConfirm] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [curPw, setCurPw] = useState('')
@@ -1001,12 +1158,20 @@ function AccountModal({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     authApi.getSessions().then(setSessions).catch(console.error)
+    usersApi.getBans().then(setBlocked).catch(console.error)
   }, [])
 
   async function revoke(id: string) {
     try {
       await authApi.revokeSession(id)
       setSessions((s) => s.filter((x) => x.id !== id))
+    } catch (err) { console.error(err) }
+  }
+
+  async function unblockUser(userId: string) {
+    try {
+      await usersApi.unbanUser(userId)
+      setBlocked((b) => b.filter((x) => x.userId !== userId))
     } catch (err) { console.error(err) }
   }
 
@@ -1092,6 +1257,29 @@ function AccountModal({ onClose }: { onClose: () => void }) {
           >
             {pwSaving ? 'Saving…' : 'Change Password'}
           </button>
+        </div>
+
+        {/* Blocked users */}
+        <div className="border-t border-gray-800 pt-4 space-y-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            Blocked Users — {blocked.length}
+          </p>
+          <div className="space-y-1 max-h-36 overflow-y-auto">
+            {blocked.length === 0
+              ? <p className="text-gray-600 text-sm">No blocked users.</p>
+              : blocked.map((b) => (
+                <div key={b.userId} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
+                  <span className="text-sm text-gray-300">@{b.username}</span>
+                  <button
+                    onClick={() => unblockUser(b.userId)}
+                    className="text-xs text-gray-500 hover:text-green-400"
+                  >
+                    Unblock
+                  </button>
+                </div>
+              ))
+            }
+          </div>
         </div>
 
         {/* Danger zone */}
@@ -1237,6 +1425,7 @@ function RoomBrowser({
 function FriendsModal({ onClose, onFriendAdded }: { onClose: () => void; onFriendAdded: () => void }) {
   const [tab, setTab] = useState<'add' | 'requests'>('add')
   const [query, setQuery] = useState('')
+  const [message, setMessage] = useState('')
   const [results, setResults] = useState<UserSearchResult[]>([])
   const [requests, setRequests] = useState<FriendRequest[]>([])
   const [sent, setSent] = useState<Set<string>>(new Set())
@@ -1256,7 +1445,7 @@ function FriendsModal({ onClose, onFriendAdded }: { onClose: () => void; onFrien
 
   async function sendRequest(userId: string) {
     try {
-      await friendsApi.send(userId)
+      await friendsApi.send(userId, message.trim() || undefined)
       setSent((s) => new Set(s).add(userId))
     } catch (err) { console.error(err) }
   }
@@ -1320,7 +1509,14 @@ function FriendsModal({ onClose, onFriendAdded }: { onClose: () => void; onFrien
                 {searching ? '…' : 'Search'}
               </button>
             </div>
-            <div className="space-y-1 max-h-52 overflow-y-auto">
+            <input
+              placeholder="Optional message…"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              maxLength={200}
+              className="w-full bg-gray-800 text-white rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-600"
+            />
+            <div className="space-y-1 max-h-44 overflow-y-auto">
               {results.length === 0 && query && !searching && (
                 <p className="text-gray-500 text-sm text-center py-3">No users found.</p>
               )}
@@ -1350,9 +1546,10 @@ function FriendsModal({ onClose, onFriendAdded }: { onClose: () => void; onFrien
             )}
             {requests.map((r) => (
               <div key={r.userId} className="flex items-center justify-between bg-gray-800 rounded-lg px-3 py-2">
-                <div>
+                <div className="min-w-0 mr-2">
                   <p className="text-white text-sm font-medium">{r.displayName}</p>
                   <p className="text-gray-500 text-xs">@{r.username}</p>
+                  {r.message && <p className="text-gray-400 text-xs mt-0.5 italic truncate">"{r.message}"</p>}
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -1447,12 +1644,30 @@ export default function ChatApp() {
     try {
       const dm = await dmsApi.open(userId)
       setDms((d) => d.some((x) => x.id === dm.id) ? d : [dm, ...d])
-      setActive({ type: 'dm', id: dm.id, otherUsername: dm.otherUsername })
+      setActive({ type: 'dm', id: dm.id, otherUsername: dm.otherUsername, isFrozen: dm.isFrozen })
       clear(dm.id)
     } catch (err) {
       console.error('Could not open DM:', err)
     }
   }
+
+  async function banFriend(userId: string) {
+    try {
+      await usersApi.banUser(userId)
+      setFriends((f) => f.filter((x) => x.userId !== userId))
+      // Freeze active DM if it was with this user
+      setActive((a) => {
+        if (a?.type === 'dm') {
+          const dm = dms.find((d) => d.id === a.id)
+          if (dm?.otherUserId === userId) return { ...a, isFrozen: true }
+        }
+        return a
+      })
+      setDms((d) => d.map((dm) => dm.otherUserId === userId ? { ...dm, isFrozen: true } : dm))
+    } catch (err) { console.error('Ban failed:', err) }
+  }
+
+  const friendIds = new Set(friends.map((f) => f.userId))
 
   return (
     <div className="flex h-screen bg-gray-950 text-white overflow-hidden">
@@ -1466,6 +1681,7 @@ export default function ChatApp() {
         onBrowse={() => setBrowsing(true)}
         onSettings={() => setSettings(true)}
         onAddFriend={() => setFriendsModal(true)}
+        onBanFriend={banFriend}
         unread={unread}
       />
 
@@ -1474,6 +1690,7 @@ export default function ChatApp() {
           <ChatArea
             chat={active}
             userId={user!.id}
+            friendIds={friendIds}
             onRoomUpdated={(r) => {
               setMyRooms((rooms) => rooms.map((x) => x.id === r.id ? r : x))
               setActive((a) => a?.type === 'room' && a.id === r.id ? { ...a, name: r.name } : a)

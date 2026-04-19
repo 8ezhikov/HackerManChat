@@ -50,7 +50,7 @@ public static class FriendEndpoints
         if (existing != null)
             return Results.Conflict(new { error = existing.Status == FriendshipStatus.Accepted ? "Already friends." : "Request already exists." });
 
-        db.Friendships.Add(new Friendship { RequesterId = myId, AddresseeId = body.UserId });
+        db.Friendships.Add(new Friendship { RequesterId = myId, AddresseeId = body.UserId, Message = body.Message });
         await db.SaveChangesAsync();
         return Results.NoContent();
     }
@@ -189,4 +189,4 @@ public static class FriendEndpoints
         db.UserBans.AnyAsync(ub => (ub.BannerId == a && ub.BannedId == b) || (ub.BannerId == b && ub.BannedId == a));
 }
 
-public record SendFriendRequestBody(Guid UserId);
+public record SendFriendRequestBody(Guid UserId, string? Message = null);

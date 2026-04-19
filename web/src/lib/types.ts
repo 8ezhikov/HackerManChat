@@ -41,10 +41,12 @@ export type Friend = {
 }
 
 export type FriendRequest = {
-  userId: string; username: string; displayName: string; sentAt: string
+  userId: string; username: string; displayName: string; message?: string; sentAt: string
 }
 
 export type UserSearchResult = { id: string; username: string; displayName: string }
+
+export type BannedUserDto = { userId: string; username: string; createdAt: string }
 
 export type SessionDto = { id: string; deviceInfo?: string; ipAddress?: string; createdAt: string; expiresAt: string }
 
@@ -52,4 +54,4 @@ export type Presence = 'online' | 'afk' | 'offline'
 
 export type ActiveChat =
   | { type: 'room'; id: string; name: string }
-  | { type: 'dm'; id: string; otherUsername: string }
+  | { type: 'dm'; id: string; otherUsername: string; isFrozen?: boolean }

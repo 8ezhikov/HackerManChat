@@ -76,20 +76,18 @@ Hackathon submission: a classic web chat server. Scope — user auth, public/pri
 - .NET 9 / ASP.NET Core / SignalR
 - EF Core 9 + PostgreSQL 16
 - Redis 7 (SignalR backplane + presence store)
-- ASP.NET Core Identity + JWT (access + rotating refresh tokens stored in DB)
-- FluentValidation, MediatR, Mapster
+- ASP.NET Core Identity + JWT (access + refresh tokens stored hashed in DB)
 
 **Client**
 - React 18 + TypeScript + Vite
-- Zustand (socket/UI state) + TanStack Query (REST cache)
-- Tailwind CSS + shadcn/ui
+- Zustand (UI state)
+- Tailwind CSS
 - `@microsoft/signalr` client
 - `BroadcastChannel` API for cross-tab presence coordination
 
 **Infrastructure (docker compose services)**
 - `api` — .NET app, runs EF migrations on startup
-- `web` — static build of the React SPA
-- `nginx` — reverse proxy, serves SPA, proxies `/api` + `/hubs` (WebSocket upgrade)
+- `web` — static build of the React SPA, served by an nginx baked into the image (proxies `/api` + `/hubs` to `api`)
 - `postgres` (with healthcheck) — volume `pgdata`
 - `redis` (with healthcheck) — volume `redisdata`
 - `mailhog` — dev-only password-reset email capture
@@ -136,7 +134,19 @@ These are the rules that are easy to get wrong. Violating any of them is a bug.
 - Persistent volumes: `pgdata`, `redisdata`, `chatfiles`.
 - Do **not** mount source code in the production compose file. Use a separate `docker-compose.dev.yml` override if hot-reload is wanted.
 
-## 10. Out of Scope
+## 10. Testing
+
+**E2E Tests (Playwright)**
+- Location: `tests/e2e/` (auth.spec.ts, rooms.spec.ts, presence.spec.ts, unread.spec.ts)
+- Run all: `cd tests/e2e && npx playwright test`
+- Run single: `npx playwright test rooms.spec.ts`
+- Headed mode: `npx playwright test --headed` (see browser)
+- Debug mode: `npx playwright test auth.spec.ts --debug`
+- MCP server: `.mcp.json` exposes tools (run_all_tests, run_specific_test, get_test_results, debug_test)
+- Docker auto-starts on port 8080; setup runs test user auth before other tests
+- Report: `playwright-report/index.html`
+
+## 11. Out of Scope
 
 Do not speculate these into the codebase:
 - Email verification flow
@@ -147,9 +157,18 @@ Do not speculate these into the codebase:
 - Mobile apps
 - XMPP federation — explicit **stretch goal**, do not begin until the core spec is fully working.
 
-## 11. XMPP/Jabber Stretch (deferred)
+## 12. XMPP/Jabber Stretch (deferred)
 
-Only after all of §1–§10 are green:
+Only after all of §1–§11 are green:
 - Add `ejabberd` sidecar container; bridge via a server-side XMPP client library.
 - Expose admin pages: connection dashboard and federation traffic statistics.
 - Include a federation load test harness (50+ clients per server, A↔B messaging).
+
+## 13. Known deviations from task.pdf
+
+- **§2.7.1 Unread indicators are client-only.** `useUnread` Zustand store in the SPA bumps/clears counts from SignalR events; nothing is persisted server-side, so counts reset on page reload. Making them survive reload needs an `UnreadMarker(userId, chatKind, chatId, lastReadMessageId)` table plus `GET /api/unread` and `POST /api/chats/{kind}/{id}/read`. Deferred by owner — acknowledged, not blocking.
+- **Refresh-token rotation is not implemented.** `AuthEndpoints` refresh path issues a new JWT pair but does not invalidate the predecessor refresh-token hash; old refresh tokens remain usable until natural expiry. Wording in §5 was softened to match.
+- **`api` container has no healthcheck.** `web` waits only on `depends_on: api` (not `service_healthy`), so nginx can 502 briefly during cold boot before the API is ready to serve.
+- **Five `[Fact(Skip=...)]` tests in `api.Tests/`** cover important behaviors but are not currently asserted: account-deletion cascade (`AuthTests`), download-after-room-ban 403 (`AttachmentTests`), private-room omission from public catalog (`RoomCrudTests`), cross-user session revoke forbidden (`SessionTests`), edit-another-users-message forbidden (`RoomMessageTests`).
+- **Playwright `presence.spec.ts` and `unread.spec.ts`** are placeholders/TODOs; `rooms.spec.ts` has no private-visibility case.
+- **Installed-but-unused packages.** `FluentValidation` and `Mapster` are in `api/HackerManChat.Api.csproj` but have zero code references; `@tanstack/react-query` is in `web/package.json` but unused. Safe to drop on the next cleanup pass.

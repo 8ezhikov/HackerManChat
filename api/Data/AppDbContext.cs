@@ -17,6 +17,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Friendship> Friendships => Set<Friendship>();
     public DbSet<UserBan> UserBans => Set<UserBan>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<UnreadMarker> UnreadMarkers => Set<UnreadMarker>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -84,6 +85,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         b.Entity<Attachment>(e =>
         {
             e.HasOne(a => a.Message).WithMany(m => m.Attachments).HasForeignKey(a => a.MessageId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<UnreadMarker>(e =>
+        {
+            e.HasKey(u => new { u.UserId, u.ChatKind, u.ChatId });
+            e.HasOne(u => u.User).WithMany().HasForeignKey(u => u.UserId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

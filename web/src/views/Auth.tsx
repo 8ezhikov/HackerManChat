@@ -14,6 +14,7 @@ export default function Auth() {
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
   const [loading, setLoading] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const setAuth = useAuth((s) => s.setAuth)
 
   useEffect(() => {
@@ -37,7 +38,7 @@ export default function Auth() {
     setLoading(true)
     try {
       if (mode === 'login') {
-        const res = await authApi.login(email, password)
+        const res = await authApi.login(email, password, rememberMe)
         setAuth(res.user, res.accessToken, res.refreshToken)
       } else if (mode === 'register') {
         const res = await authApi.register(email, username, password)
@@ -120,6 +121,17 @@ export default function Auth() {
               required
               className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 outline-none focus:ring-2 focus:ring-indigo-500"
             />
+          )}
+          {mode === 'login' && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 bg-gray-800 border border-gray-700 rounded focus:ring-2 focus:ring-indigo-500"
+              />
+              <span className="text-gray-300 text-sm">Remember me for 90 days</span>
+            </label>
           )}
           {error && (
             <ul className="space-y-0.5">

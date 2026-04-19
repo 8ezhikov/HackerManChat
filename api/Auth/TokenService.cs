@@ -38,16 +38,17 @@ public class TokenService(IConfiguration config, AppDbContext db)
     }
 
     public async Task<(Session session, string rawToken)> CreateSessionAsync(
-        ApplicationUser user, string? ipAddress, string? deviceInfo)
+        ApplicationUser user, string? ipAddress, string? deviceInfo, bool rememberMe = false)
     {
         var raw = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        var expiryDays = rememberMe ? 90 : _refreshDays;
         var session = new Session
         {
             UserId = user.Id,
             RefreshTokenHash = Hash(raw),
             IpAddress = ipAddress,
             DeviceInfo = deviceInfo,
-            ExpiresAt = DateTime.UtcNow.AddDays(_refreshDays),
+            ExpiresAt = DateTime.UtcNow.AddDays(expiryDays),
         };
         db.Sessions.Add(session);
         await db.SaveChangesAsync();

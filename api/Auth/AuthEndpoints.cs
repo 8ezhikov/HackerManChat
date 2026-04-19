@@ -64,7 +64,7 @@ public static class AuthEndpoints
 
         var access = tokens.CreateAccessToken(user);
         var (session, raw) = await tokens.CreateSessionAsync(
-            user, http.Connection.RemoteIpAddress?.ToString(), http.Request.Headers.UserAgent.ToString());
+            user, http.Connection.RemoteIpAddress?.ToString(), http.Request.Headers.UserAgent.ToString(), req.RememberMe);
 
         return Results.Ok(AuthResponse.From(access, raw, session.ExpiresAt, user));
     }

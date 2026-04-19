@@ -93,8 +93,8 @@ export const authApi = {
   register: (email: string, username: string, password: string) =>
     req<AuthResponse>('/auth/register', { method: 'POST', ...json({ email, username, password }) }),
 
-  login: (email: string, password: string) =>
-    req<AuthResponse>('/auth/login', { method: 'POST', ...json({ email, password }) }),
+  login: (email: string, password: string, rememberMe: boolean = false) =>
+    req<AuthResponse>('/auth/login', { method: 'POST', ...json({ email, password, rememberMe }) }),
 
   logout: (refreshToken: string) =>
     req('/auth/logout', { method: 'POST', ...json({ refreshToken }) }),

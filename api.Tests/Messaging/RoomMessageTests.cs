@@ -123,9 +123,21 @@ public class RoomMessageTests(ApiFactory factory) : TestBase(factory)
         res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
-    [Fact(Skip = "TODO: verify editing another user's message returns 403")]
+    [Fact]
     public async Task EditMessage_AsNonAuthor_ReturnsForbid()
     {
-        throw new NotImplementedException();
+        var (ownerClient, roomId) = await SetupRoomAsync();
+        var (memberClient, _) = await RegisterAsync();
+        await memberClient.PostAsJsonAsync($"/api/rooms/{roomId}/join", new { });
+
+        var sendRes = await memberClient.PostAsJsonAsync($"/api/rooms/{roomId}/messages",
+            new SendMessageBody("member message", null));
+        var msg = (await sendRes.Content.ReadFromJsonAsync<MessageDto>())!;
+
+        // Owner tries to edit member's message — only authors can edit
+        var editRes = await ownerClient.PatchAsJsonAsync($"/api/rooms/{roomId}/messages/{msg.Id}",
+            new EditMessageBody("tampered"));
+
+        editRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 }

@@ -41,9 +41,18 @@ public class SessionTests(ApiFactory factory) : TestBase(factory)
         revokeRes.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
-    [Fact(Skip = "TODO: need second authenticated client to verify cross-user 403")]
-    public async Task RevokeSession_ByDifferentUser_ReturnsForbid()
+    [Fact]
+    public async Task RevokeSession_ByDifferentUser_ReturnsNotFound()
     {
-        throw new NotImplementedException();
+        var (clientA, _) = await RegisterAsync();
+        var (clientB, _) = await RegisterAsync();
+
+        var sessionsRes = await clientA.GetAsync("/api/auth/sessions");
+        var sessions = (await sessionsRes.Content.ReadFromJsonAsync<SessionDto[]>())!;
+        var sessionIdOfA = sessions[0].Id;
+
+        // API scopes session lookup to the requesting user, so another user's session ID → 404
+        var revokeRes = await clientB.DeleteAsync($"/api/auth/sessions/{sessionIdOfA}");
+        revokeRes.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

@@ -18,10 +18,11 @@ public class PresenceHub(AppDbContext db, IConnectionMultiplexer redis) : Hub
 
         await Redis.HashSetAsync(PresenceKey(userId), Context.ConnectionId, "online");
 
-        // Subscribe to friends' presence groups
+        // Subscribe to friends' presence groups AND own group (to receive own presence changes)
         var friendIds = await GetFriendIdsAsync(userId);
         foreach (var fId in friendIds)
             await Groups.AddToGroupAsync(Context.ConnectionId, HubConstants.FriendOfGroup(fId));
+        await Groups.AddToGroupAsync(Context.ConnectionId, HubConstants.FriendOfGroup(userId));
 
         // Announce own presence to friend-of group
         await Clients.Group(HubConstants.FriendOfGroup(userId))
@@ -65,6 +66,7 @@ public class PresenceHub(AppDbContext db, IConnectionMultiplexer redis) : Hub
         var result = new Dictionary<string, string>();
         foreach (var fId in friendIds)
             result[fId.ToString()] = await ComputePresenceAsync(fId);
+        result[userId.ToString()] = await ComputePresenceAsync(userId);
         return result;
     }
 

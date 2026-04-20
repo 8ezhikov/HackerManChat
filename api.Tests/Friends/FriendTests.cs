@@ -106,9 +106,14 @@ public class FriendTests(ApiFactory factory) : TestBase(factory)
         sendRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
-    [Fact(Skip = "TODO: verify sending a friend request to self returns 400")]
+    [Fact]
     public async Task SendFriendRequest_ToSelf_ReturnsBadRequest()
     {
-        throw new NotImplementedException();
+        var (client, auth) = await RegisterAsync();
+
+        var res = await client.PostAsJsonAsync("/api/friends/requests",
+            new SendFriendRequestBody(auth.User.Id));
+
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 }

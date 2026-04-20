@@ -102,24 +102,28 @@ public class AuthTests(ApiFactory factory) : TestBase(factory)
         refreshRes.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    [Fact(Skip = "TODO: verify token invalidation on account deletion")]
+    [Fact]
     public async Task DeleteAccount_RemovesUser_And_CascadesOwnedRoom()
     {
         var (client, auth) = await RegisterAsync();
 
-        // Create a room the user owns
         var roomRes = await client.PostAsJsonAsync("/api/rooms",
             new { name = MakeRoomName(), description = "test", visibility = "public" });
         roomRes.EnsureSuccessStatusCode();
-        var room = (await roomRes.Content.ReadFromJsonAsync<dynamic>())!;
+        var room = (await roomRes.Content.ReadFromJsonAsync<HackerManChat.Api.Rooms.RoomDto>())!;
 
-        // Delete account
         var delRes = await client.DeleteAsync("/api/auth/account");
         delRes.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
-        // Attempting to use the old token should fail
-        var meRes = await client.GetAsync("/api/friends");
-        meRes.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        // Sessions are cascade-deleted: refresh token should no longer work
+        var refreshRes = await AnonymousClient.PostAsJsonAsync("/api/auth/refresh",
+            new RefreshRequest(auth.RefreshToken));
+        refreshRes.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        // Owned room should be cascade-deleted
+        var (otherClient, _) = await RegisterAsync();
+        var getRoomRes = await otherClient.GetAsync($"/api/rooms/{room.Id}");
+        getRoomRes.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact(Skip = "TODO: password reset requires SMTP / token extraction from MailHog")]

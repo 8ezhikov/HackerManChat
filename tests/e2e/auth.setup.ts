@@ -9,14 +9,14 @@ setup('authenticate alice', async ({ page }) => {
   await page.goto('/')
 
   // Register alice
-  await page.click('button:has-text("Register")')
-  await page.fill('input[placeholder="Email"]', `alice-${uniqueId}@example.com`)
-  await page.fill('input[placeholder="Username"]', `alice-${uniqueId}`)
-  await page.fill('input[placeholder="Password"]', 'password123')
-  await page.click('button:has-text("Create account")')
+  await page.click('button:has-text("REGISTER")')
+  await page.fill('input[placeholder="EMAIL_ADDRESS"]', `alice-${uniqueId}@example.com`)
+  await page.fill('input[placeholder="USERNAME"]', `alice-${uniqueId}`)
+  await page.fill('input[placeholder="PASSWORD"]', 'password123')
+  await page.click('button:has-text("CREATE_ACCOUNT")')
 
   // Wait for ChatApp to render (user state set)
-  await page.waitForSelector('button:has-text("Browse")', { timeout: 10000 })
+  await page.waitForSelector('button:has-text("Public Rooms")', { timeout: 30000 })
 
   await page.context().storageState({ path: authFile })
 })
@@ -24,15 +24,15 @@ setup('authenticate alice', async ({ page }) => {
 setup('authenticate bob', async ({ page }) => {
   await page.goto('/')
 
-  const registerBtn = page.locator('button:has-text("Register")')
+  const registerBtn = page.locator('button:has-text("REGISTER")')
   await registerBtn.click()
 
-  await page.fill('input[placeholder="Email"]', `bob-${uniqueId}@example.com`)
-  await page.fill('input[placeholder="Username"]', `bob-${uniqueId}`)
-  await page.fill('input[placeholder="Password"]', 'password123')
-  await page.click('button:has-text("Create account")')
+  await page.fill('input[placeholder="EMAIL_ADDRESS"]', `bob-${uniqueId}@example.com`)
+  await page.fill('input[placeholder="USERNAME"]', `bob-${uniqueId}`)
+  await page.fill('input[placeholder="PASSWORD"]', 'password123')
+  await page.click('button:has-text("CREATE_ACCOUNT")')
 
-  await page.waitForSelector('button:has-text("Browse")', { timeout: 10000 })
+  await page.waitForSelector('button:has-text("Public Rooms")', { timeout: 30000 })
 
   await page.context().storageState({ path: bobAuthFile })
 })

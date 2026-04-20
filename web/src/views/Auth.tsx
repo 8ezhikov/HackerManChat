@@ -25,7 +25,6 @@ export default function Auth() {
       setResetToken(token)
       setEmail(emailParam)
       setMode('reset')
-      // Clean URL without reload
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [])
@@ -61,110 +60,139 @@ export default function Auth() {
     }
   }
 
-  const titles: Record<Mode, string> = {
-    login: 'Welcome back.',
-    register: 'Create an account.',
-    forgot: 'Reset your password.',
-    reset: 'Choose a new password.',
+  const subtitles: Record<Mode, string> = {
+    login: 'AUTHENTICATE // ACCESS GRANTED',
+    register: 'INITIALIZE // NEW OPERATIVE',
+    forgot: 'RECOVER // CREDENTIALS LOST',
+    reset: 'OVERRIDE // SET NEW PASSPHRASE',
   }
 
   const buttonLabels: Record<Mode, string> = {
-    login: 'Sign in',
-    register: 'Create account',
-    forgot: 'Send reset link',
-    reset: 'Reset password',
+    login: 'SIGN_IN',
+    register: 'CREATE_ACCOUNT',
+    forgot: 'SEND_RESET_LINK',
+    reset: 'RESET_PASSWORD',
   }
 
-  return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <div className="w-full max-w-sm bg-gray-900 rounded-2xl p-8 shadow-xl">
-        <h1 className="text-2xl font-bold text-white mb-1">HackerManChat</h1>
-        <p className="text-gray-400 text-sm mb-6">{titles[mode]}</p>
+  const inputCls = "w-full bg-[#201f1f] text-[#e5e2e1] px-4 py-3 text-base placeholder:text-[#9a8ca2] outline-none focus:ring-1 focus:ring-[#9d00ff] border-0 font-['Inter']"
 
-        <form onSubmit={submit} className="space-y-4">
+  return (
+    <div className="min-h-screen bg-[#0e0e0e] flex items-center justify-center px-4">
+      <div className="w-full max-w-sm bg-[#1c1b1b] border border-[#353534]/20 p-8 shadow-2xl">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-[#dfb7ff] chromatic-aberration font-headline uppercase tracking-tighter mb-1">
+            HACKER_MAN // TERMINAL
+          </h1>
+          <p className="text-[#9a8ca2] text-sm font-label uppercase tracking-[0.25em]">
+            {subtitles[mode]}
+          </p>
+          <div className="mt-4 h-px bg-gradient-to-r from-[#9d00ff]/50 to-transparent" />
+        </div>
+
+        <form onSubmit={submit} className="space-y-3">
           {mode !== 'reset' && (
             <input
               type="email"
-              placeholder="Email"
+              placeholder="EMAIL_ADDRESS"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 outline-none focus:ring-2 focus:ring-indigo-500"
+              className={inputCls}
             />
           )}
           {mode === 'register' && (
             <input
               type="text"
-              placeholder="Username"
+              placeholder="USERNAME"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
-              className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 outline-none focus:ring-2 focus:ring-indigo-500"
+              className={inputCls}
             />
           )}
           {(mode === 'login' || mode === 'register') && (
             <input
               type="password"
-              placeholder="Password"
+              placeholder="PASSWORD"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 outline-none focus:ring-2 focus:ring-indigo-500"
+              className={inputCls}
             />
           )}
           {mode === 'reset' && (
             <input
               type="password"
-              placeholder="New password (min 8 chars)"
+              placeholder="NEW_PASSWORD (min 8 chars)"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
-              className="w-full bg-gray-800 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 outline-none focus:ring-2 focus:ring-indigo-500"
+              className={inputCls}
             />
           )}
           {mode === 'login' && (
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-3 cursor-pointer py-1">
               <input
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 bg-gray-800 border border-gray-700 rounded focus:ring-2 focus:ring-indigo-500"
+                className="w-4 h-4 bg-[#201f1f] border border-[#353534] accent-[#9d00ff]"
               />
-              <span className="text-gray-300 text-sm">Remember me for 90 days</span>
+              <span className="text-[#9a8ca2] text-sm font-label uppercase tracking-wider">Remember me for 90 days</span>
             </label>
           )}
           {error && (
-            <ul className="space-y-0.5">
+            <ul className="space-y-0.5 bg-[#ffb4ab]/10 border border-[#ffb4ab]/20 px-3 py-2">
               {error.split('\n').map((e, i) => (
-                <li key={i} className="text-red-400 text-xs">• {e}</li>
+                <li key={i} className="text-[#ffb4ab] text-sm font-label">// {e}</li>
               ))}
             </ul>
           )}
-          {info && <p className="text-green-400 text-xs">{info}</p>}
+          {info && (
+            <p className="text-[#d5baff] text-sm font-label bg-[#9d00ff]/10 border border-[#9d00ff]/20 px-3 py-2">
+              // {info}
+            </p>
+          )}
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-medium rounded-lg py-2.5 text-sm transition-colors"
+            className="w-full bg-[#9d00ff] hover:brightness-110 disabled:opacity-40 text-white font-bold font-label py-3 text-sm tracking-[0.25em] uppercase transition-all active:scale-95"
           >
-            {loading ? 'Please wait…' : buttonLabels[mode]}
+            {loading ? 'PROCESSING...' : buttonLabels[mode]}
           </button>
         </form>
 
-        <div className="mt-4 text-center text-sm text-gray-500 space-y-1">
+        <div className="mt-6 text-center space-y-2">
           {mode === 'login' && (
             <>
-              <p>
-                {"Don't have an account? "}
-                <button onClick={() => { setMode('register'); reset() }} className="text-indigo-400 hover:text-indigo-300">Register</button>
+              <p className="text-sm text-[#9a8ca2] font-label uppercase tracking-wider">
+                No account?{' '}
+                <button
+                  onClick={() => { setMode('register'); reset() }}
+                  className="text-[#dfb7ff] hover:text-white transition-colors"
+                >
+                  REGISTER
+                </button>
               </p>
               <p>
-                <button onClick={() => { setMode('forgot'); reset() }} className="text-indigo-400 hover:text-indigo-300">Forgot password?</button>
+                <button
+                  onClick={() => { setMode('forgot'); reset() }}
+                  className="text-sm text-[#9a8ca2] font-label uppercase tracking-wider hover:text-[#dfb7ff] transition-colors"
+                >
+                  Forgot password?
+                </button>
               </p>
             </>
           )}
           {(mode === 'register' || mode === 'forgot' || mode === 'reset') && (
             <p>
-              <button onClick={() => { setMode('login'); reset() }} className="text-indigo-400 hover:text-indigo-300">Back to sign in</button>
+              <button
+                onClick={() => { setMode('login'); reset() }}
+                className="text-sm text-[#9a8ca2] font-label uppercase tracking-wider hover:text-[#dfb7ff] transition-colors"
+              >
+                ← BACK_TO_LOGIN
+              </button>
             </p>
           )}
         </div>

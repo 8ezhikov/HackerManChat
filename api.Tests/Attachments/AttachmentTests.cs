@@ -107,9 +107,24 @@ public class AttachmentTests(ApiFactory factory) : TestBase(factory)
         downloadRes.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
-    [Fact(Skip = "TODO: verify that after room ban, downloading attachment returns 403")]
+    [Fact]
     public async Task DownloadAttachment_AfterRoomBan_ReturnsForbid()
     {
-        throw new NotImplementedException();
+        var (ownerClient, roomId) = await SetupRoomAsync();
+        var (memberClient, memberAuth) = await RegisterAsync();
+
+        await memberClient.PostAsJsonAsync($"/api/rooms/{roomId}/join", new { });
+
+        using var form = MakeFileContent("secret.bin", "application/octet-stream", 512);
+        var uploadRes = await memberClient.PostAsync($"/api/rooms/{roomId}/upload", form);
+        var msg = (await uploadRes.Content.ReadFromJsonAsync<HackerManChat.Api.Messages.MessageDto>())!;
+        var attachmentId = msg.Attachments[0].Id;
+
+        // Owner bans the member
+        await ownerClient.PostAsJsonAsync($"/api/rooms/{roomId}/bans/{memberAuth.User.Id}", new { });
+
+        // Banned member should no longer be able to download
+        var downloadRes = await memberClient.GetAsync($"/api/attachments/{attachmentId}");
+        downloadRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 }

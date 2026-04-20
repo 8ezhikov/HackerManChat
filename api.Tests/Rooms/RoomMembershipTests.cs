@@ -97,9 +97,21 @@ public class RoomMembershipTests(ApiFactory factory) : TestBase(factory)
         demoteRes.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
-    [Fact(Skip = "TODO: verify a non-owner admin cannot demote another admin")]
+    [Fact]
     public async Task DemoteAdmin_AsRegularAdmin_ReturnsForbid()
     {
-        throw new NotImplementedException();
+        var (ownerClient, room, adminClient, adminId) = await SetupRoomWithMemberAsync();
+        var (secondAdminClient, secondAdminAuth) = await RegisterAsync();
+
+        // Second admin joins and gets promoted
+        await secondAdminClient.PostAsJsonAsync($"/api/rooms/{room.Id}/join", new { });
+        await ownerClient.PostAsJsonAsync($"/api/rooms/{room.Id}/admins/{secondAdminAuth.User.Id}", new { });
+
+        // Promote first member to admin too
+        await ownerClient.PostAsJsonAsync($"/api/rooms/{room.Id}/admins/{adminId}", new { });
+
+        // Regular admin tries to demote another admin — only owner can do this
+        var demoteRes = await adminClient.DeleteAsync($"/api/rooms/{room.Id}/admins/{secondAdminAuth.User.Id}");
+        demoteRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 }

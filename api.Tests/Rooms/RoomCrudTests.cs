@@ -123,9 +123,19 @@ public class RoomCrudTests(ApiFactory factory) : TestBase(factory)
         res.StatusCode.Should().Be(HttpStatusCode.Conflict);
     }
 
-    [Fact(Skip = "TODO: verify private room absent from GET /api/rooms catalog")]
+    [Fact]
     public async Task CreatePrivateRoom_NotInPublicCatalog()
     {
-        throw new NotImplementedException();
+        var (client, _) = await RegisterAsync();
+        var name = MakeRoomName();
+
+        var createRes = await client.PostAsJsonAsync("/api/rooms",
+            new CreateRoomRequest(name, null, "private"));
+        createRes.EnsureSuccessStatusCode();
+
+        var catalogRes = await client.GetAsync($"/api/rooms?q={name}");
+        catalogRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        var rooms = (await catalogRes.Content.ReadFromJsonAsync<RoomDto[]>())!;
+        rooms.Should().NotContain(r => r.Name == name);
     }
 }

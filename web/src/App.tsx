@@ -15,5 +15,10 @@ export default function App() {
       .catch(logout)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return user ? <ChatApp /> : <Auth />
+  return (
+    <>
+      <div className="scanlines" />
+      {user ? <ChatApp /> : <Auth />}
+    </>
+  )
 }

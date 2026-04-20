@@ -74,20 +74,22 @@ export default function Auth() {
     reset: 'RESET_PASSWORD',
   }
 
-  const inputCls = "w-full bg-[#201f1f] text-[#e5e2e1] px-4 py-3 text-base placeholder:text-[#9a8ca2] outline-none focus:ring-1 focus:ring-[#9d00ff] border-0 font-['Inter']"
+  const inputCls = "w-full px-3.5 py-3 outline-none font-label text-[12px] uppercase tracking-[0.15em]"
+  const inputStyle = { background: 'var(--surface-mid)', border: 'none', borderBottom: '1px solid transparent', color: 'var(--on-surface)' }
 
   return (
-    <div className="min-h-screen bg-[#0e0e0e] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-[#1c1b1b] border border-[#353534]/20 p-8 shadow-2xl">
+    <div className="min-h-screen bg-[#0e0e0e] bg-grid crt-vignette flex items-center justify-center px-4">
+      <div className="scanlines" />
+      <div className="w-full max-w-sm p-8" style={{ background: 'var(--surface-low)', border: '1px solid var(--surface-highest)', boxShadow: '0 40px 100px rgba(0,0,0,0.6), 0 0 60px rgba(157,0,255,0.08)' }}>
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-[#dfb7ff] chromatic-aberration font-headline uppercase tracking-tighter mb-1">
-            HACKER_MAN // TERMINAL
+          <h1 className="font-headline font-bold chromatic-aberration uppercase tracking-tighter mb-1" style={{ fontSize: 22, color: 'var(--primary)', lineHeight: 1.1 }}>
+            HACKER_MAN //<br />TERMINAL
           </h1>
-          <p className="text-[#9a8ca2] text-sm font-label uppercase tracking-[0.25em]">
+          <p className="font-label text-[10px] uppercase tracking-[0.3em] mt-2" style={{ color: 'var(--outline)' }}>
             {subtitles[mode]}
           </p>
-          <div className="mt-4 h-px bg-gradient-to-r from-[#9d00ff]/50 to-transparent" />
+          <div className="mt-3.5 h-px bg-gradient-to-r from-[#9d00ff] to-transparent" />
         </div>
 
         <form onSubmit={submit} className="space-y-3">
@@ -99,6 +101,7 @@ export default function Auth() {
               onChange={(e) => setEmail(e.target.value)}
               required
               className={inputCls}
+              style={inputStyle}
             />
           )}
           {mode === 'register' && (
@@ -109,6 +112,7 @@ export default function Auth() {
               onChange={(e) => setUsername(e.target.value)}
               required
               className={inputCls}
+              style={inputStyle}
             />
           )}
           {(mode === 'login' || mode === 'register') && (
@@ -119,6 +123,7 @@ export default function Auth() {
               onChange={(e) => setPassword(e.target.value)}
               required
               className={inputCls}
+              style={inputStyle}
             />
           )}
           {mode === 'reset' && (
@@ -129,6 +134,7 @@ export default function Auth() {
               onChange={(e) => setNewPassword(e.target.value)}
               required
               className={inputCls}
+              style={inputStyle}
             />
           )}
           {mode === 'login' && (
@@ -139,7 +145,7 @@ export default function Auth() {
                 onChange={(e) => setRememberMe(e.target.checked)}
                 className="w-4 h-4 bg-[#201f1f] border border-[#353534] accent-[#9d00ff]"
               />
-              <span className="text-[#9a8ca2] text-sm font-label uppercase tracking-wider">Remember me for 90 days</span>
+              <span className="text-[#b8aac2] text-sm font-label uppercase tracking-wider">Remember me for 90 days</span>
             </label>
           )}
           {error && (
@@ -157,7 +163,8 @@ export default function Auth() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#9d00ff] hover:brightness-110 disabled:opacity-40 text-white font-bold font-label py-3 text-sm tracking-[0.25em] uppercase transition-all active:scale-95"
+            className="w-full font-bold font-label py-3 text-[11px] tracking-[0.3em] uppercase transition-all"
+            style={{ background: 'var(--primary-cta)', color: 'white', opacity: loading ? 0.4 : 1, marginTop: 4 }}
           >
             {loading ? 'PROCESSING...' : buttonLabels[mode]}
           </button>
@@ -166,7 +173,7 @@ export default function Auth() {
         <div className="mt-6 text-center space-y-2">
           {mode === 'login' && (
             <>
-              <p className="text-sm text-[#9a8ca2] font-label uppercase tracking-wider">
+              <p className="text-sm text-[#b8aac2] font-label uppercase tracking-wider">
                 No account?{' '}
                 <button
                   onClick={() => { setMode('register'); reset() }}
@@ -178,7 +185,7 @@ export default function Auth() {
               <p>
                 <button
                   onClick={() => { setMode('forgot'); reset() }}
-                  className="text-sm text-[#9a8ca2] font-label uppercase tracking-wider hover:text-[#dfb7ff] transition-colors"
+                  className="text-sm text-[#b8aac2] font-label uppercase tracking-wider hover:text-[#dfb7ff] transition-colors"
                 >
                   Forgot password?
                 </button>
@@ -189,7 +196,7 @@ export default function Auth() {
             <p>
               <button
                 onClick={() => { setMode('login'); reset() }}
-                className="text-sm text-[#9a8ca2] font-label uppercase tracking-wider hover:text-[#dfb7ff] transition-colors"
+                className="text-sm text-[#b8aac2] font-label uppercase tracking-wider hover:text-[#dfb7ff] transition-colors"
               >
                 ← BACK_TO_LOGIN
               </button>

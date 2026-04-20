@@ -8,7 +8,6 @@ import { useAuth } from '../store/auth'
 import { usePresence } from '../store/presence'
 import { useUnread } from '../store/unread'
 import type { ActiveChat, AttachmentDto, Dm, Friend, FriendRequest, Message, Room, RoomBan, RoomMember, SessionDto, UserSearchResult } from '../lib/types'
-import chatBg from '../assets/chat-bg.png'
 
 // ── Presence dot ──────────────────────────────────────────────────────────────
 function PresenceDot({ userId }: { userId: string }) {
@@ -20,49 +19,102 @@ function PresenceDot({ userId }: { userId: string }) {
 // ── Top navigation bar ────────────────────────────────────────────────────────
 function TopNav({
   user, onPublicRooms, onPrivateRooms, onContacts, onSessions, onSignOut, onSettings,
+  messageStyle, onMessageStyleChange,
 }: {
-  user: { username: string }
+  user: { username: string; id: string }
   onPublicRooms: () => void
   onPrivateRooms: () => void
   onContacts: () => void
   onSessions: () => void
   onSignOut: () => void
   onSettings: () => void
+  messageStyle: 'terminal' | 'bubble' | 'compact'
+  onMessageStyleChange: (s: 'terminal' | 'bubble' | 'compact') => void
 }) {
   const [profileOpen, setProfileOpen] = useState(false)
+  const presences = usePresence((s) => s.presences)
+  const onlineCount = Object.values(presences).filter((p) => p === 'online').length
+
   return (
-    <nav className="h-12 bg-[#0e0e0e]/70 backdrop-blur border-b border-[#353534]/20 flex items-center px-6 gap-6 shrink-0 z-10">
-      <span className="font-bold text-[#dfb7ff] text-lg mr-4 font-headline uppercase tracking-tighter chromatic-aberration">
-        HACKER_MAN
-      </span>
-      <button onClick={onPublicRooms} className="text-[#e5e2e1]/50 hover:text-[#dfb7ff] text-sm font-label uppercase tracking-[0.15em] transition-colors">Public Rooms</button>
-      <button onClick={onPrivateRooms} className="text-[#e5e2e1]/50 hover:text-[#dfb7ff] text-sm font-label uppercase tracking-[0.15em] transition-colors">Private Rooms</button>
-      <button onClick={onContacts} className="text-[#e5e2e1]/50 hover:text-[#dfb7ff] text-sm font-label uppercase tracking-[0.15em] transition-colors">Contacts</button>
-      <button onClick={onSessions} className="text-[#e5e2e1]/50 hover:text-[#dfb7ff] text-sm font-label uppercase tracking-[0.15em] transition-colors">Sessions</button>
-      <div className="ml-auto relative">
-        <button
-          onClick={() => setProfileOpen((o) => !o)}
-          className="text-[#dfb7ff] hover:text-white text-sm font-label uppercase tracking-[0.15em] flex items-center gap-1 transition-colors"
-        >
-          {user.username} <span className="text-xs opacity-60">▼</span>
-        </button>
-        {profileOpen && (
-          <div className="absolute right-0 top-8 bg-[#1c1b1b] border border-[#353534]/30 shadow-xl py-1 min-w-40 z-50">
-            <button
-              onClick={() => { setProfileOpen(false); onSettings() }}
-              className="w-full text-left px-4 py-2 text-sm font-label uppercase tracking-wider text-[#e5e2e1]/60 hover:text-[#dfb7ff] hover:bg-[#353534]/30 transition-colors"
-            >
-              Account Settings
-            </button>
-          </div>
-        )}
+    <nav
+      className="h-12 border-b border-[#353534] flex items-center px-5 gap-6 shrink-0 z-10"
+      style={{ background: 'rgba(14,14,14,0.85)', backdropFilter: 'blur(8px)' }}
+    >
+      {/* Logo */}
+      <div className="flex items-center gap-2.5">
+        <svg width="32" height="32" viewBox="0 0 16 16" style={{ color: 'var(--primary-cta)', filter: 'drop-shadow(0 0 8px var(--primary-cta))' }}>
+          <rect x="2" y="2" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" />
+          <rect x="5.5" y="5.5" width="5" height="5" fill="currentColor" />
+        </svg>
+        <span className="font-bold font-headline uppercase tracking-tighter chromatic-aberration" style={{ fontSize: 20, color: '#ffffff', textShadow: '0 0 12px var(--primary-cta), 0 0 28px var(--primary-cta), 0 0 2px rgba(255,255,255,0.8)' }}>
+          HACKER_MAN
+        </span>
       </div>
-      <button
-        onClick={onSignOut}
-        className="text-[#e5e2e1]/40 hover:text-[#ffb4ab] text-sm font-label uppercase tracking-[0.15em] transition-colors"
-      >
-        Sign out
-      </button>
+
+      <button onClick={onPublicRooms} className="text-[#b8aac2] hover:text-[#dfb7ff] text-[11px] font-label uppercase tracking-[0.2em] transition-colors">Rooms</button>
+      <button onClick={onContacts} className="text-[#b8aac2] hover:text-[#dfb7ff] text-[11px] font-label uppercase tracking-[0.2em] transition-colors">Contacts</button>
+      <button onClick={onSessions} className="text-[#b8aac2] hover:text-[#dfb7ff] text-[11px] font-label uppercase tracking-[0.2em] transition-colors">Sessions</button>
+
+      <div className="ml-auto flex items-center gap-4">
+        {onlineCount > 0 && (
+          <span className="font-mono text-[10px] text-[#b8aac2] uppercase tracking-[0.15em] flex items-center gap-1.5">
+            <span className="inline-block w-1.5 h-1.5" style={{ background: 'var(--primary)' }} />
+            {onlineCount} online
+          </span>
+        )}
+
+        {/* Message style switcher */}
+        <div className="flex gap-0.5">
+          {(['terminal', 'bubble', 'compact'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => onMessageStyleChange(s)}
+              className="font-label text-[9px] uppercase tracking-[0.1em] px-2 py-1 transition-colors"
+              style={{
+                background: messageStyle === s ? 'var(--primary-cta)' : 'transparent',
+                color: messageStyle === s ? 'white' : 'var(--outline)',
+              }}
+            >
+              {s === 'terminal' ? 'T' : s === 'bubble' ? 'B' : 'C'}
+            </button>
+          ))}
+        </div>
+
+        <div className="relative">
+          <button
+            onClick={() => setProfileOpen((o) => !o)}
+            className="font-label text-[12px] uppercase tracking-[0.15em] flex items-center gap-1.5 transition-colors"
+            style={{ color: 'var(--primary)' }}
+          >
+            <PresenceDot userId={user.id} />
+            {user.username} ▾
+          </button>
+          {profileOpen && (
+            <div className="absolute right-0 top-7 min-w-44 z-50" style={{ background: 'var(--surface)', border: '1px solid var(--surface-highest)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+              <button
+                onClick={() => { setProfileOpen(false); onSettings() }}
+                className="raise w-full text-left px-3.5 py-2 text-[11px] font-label uppercase tracking-[0.15em] text-[#e5e2e1] transition-colors"
+              >
+                Account Settings
+              </button>
+              <button
+                onClick={() => { setProfileOpen(false); onSessions() }}
+                className="raise w-full text-left px-3.5 py-2 text-[11px] font-label uppercase tracking-[0.15em] text-[#e5e2e1] transition-colors"
+              >
+                Active Sessions
+              </button>
+              <div style={{ borderTop: '1px solid var(--surface-highest)' }} />
+              <button
+                onClick={() => { setProfileOpen(false); onSignOut() }}
+                className="raise w-full text-left px-3.5 py-2 text-[11px] font-label uppercase tracking-[0.15em] transition-colors"
+                style={{ color: 'var(--error)' }}
+              >
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </nav>
   )
 }
@@ -99,15 +151,21 @@ function Sidebar({
   const filteredFriends = friends.filter((f) => !q || f.displayName.toLowerCase().includes(q) || f.username.toLowerCase().includes(q))
 
   return (
-    <div className="w-64 bg-[#1c1b1b]/70 backdrop-blur border-r border-[#353534]/10 flex flex-col shrink-0 overflow-y-auto shadow-[40px_0_40px_rgba(0,0,0,0.4)]">
+    <div
+      className="border-r border-[#353534] flex flex-col shrink-0 overflow-hidden"
+      style={{ width: 252, background: 'rgba(28,27,27,0.7)', backdropFilter: 'blur(8px)' }}
+    >
       {/* Search */}
-      <div className="px-3 pt-4 pb-2">
-        <input
-          value={searchQ}
-          onChange={(e) => setSearchQ(e.target.value)}
-          placeholder="SEARCH..."
-          className="w-full bg-[#201f1f] text-[#e5e2e1] text-sm font-label uppercase tracking-wider px-3 py-1.5 outline-none placeholder:text-[#9a8ca2]/50 focus:ring-1 focus:ring-[#9d00ff] border-0"
-        />
+      <div className="px-3 pt-3 pb-2">
+        <div className="flex items-center gap-2 px-2.5 py-1.5" style={{ background: 'var(--surface-mid)', border: '1px solid transparent' }}>
+          <span className="font-mono text-[11px] text-[#b8aac2] shrink-0">⌕</span>
+          <input
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            placeholder="SEARCH..."
+            className="flex-1 bg-transparent text-[#e5e2e1] text-[11px] font-label uppercase tracking-[0.15em] outline-none placeholder:text-[#b8aac2]/50 border-0"
+          />
+        </div>
       </div>
 
       {/* Rooms */}
@@ -122,7 +180,7 @@ function Sidebar({
               <span className={`transition-transform text-[10px] ${pubExpanded ? 'rotate-90' : ''}`}>▶</span>
               Public Rooms
             </button>
-            <button onClick={onBrowse} className="text-[#9a8ca2]/50 hover:text-[#dfb7ff] text-xs font-label transition-colors">Browse</button>
+            <button onClick={onBrowse} className="text-[#b8aac2]/50 hover:text-[#dfb7ff] text-xs font-label transition-colors">Browse</button>
           </div>
           {pubExpanded && publicRooms.map((r) => (
             <NavItem
@@ -160,61 +218,40 @@ function Sidebar({
         )}
       </div>
 
-      {/* Contacts */}
+      {/* Direct Messages */}
       <div className="mt-4">
         <div className="flex items-center justify-between px-4 mb-0.5">
-          <span className="text-xs font-bold font-label text-[#ffb0cc] uppercase tracking-[0.3em]">Contacts</span>
-          <button onClick={onAddFriend} className="text-[#9a8ca2]/50 hover:text-[#ffb0cc] text-sm font-label transition-colors">+</button>
+          <span className="text-xs font-bold font-label text-[#ffb0cc] uppercase tracking-[0.3em]">Direct Messages</span>
+          <button onClick={onAddFriend} className="text-[#b8aac2]/50 hover:text-[#ffb0cc] text-sm font-label transition-colors">+</button>
         </div>
-        {filteredFriends.map((f) => {
-          const dm = dms.find((d) => d.otherUserId === f.userId)
-          const badge = dm ? unread[dm.id] : undefined
-          const frozen = dm?.isFrozen
+        {dms.map((dm) => {
+          const badge = unread[dm.id]
           return (
-            <div
-              key={f.userId}
-              className="relative"
-              onMouseEnter={() => setHoveredFriend(f.userId)}
-              onMouseLeave={() => setHoveredFriend(null)}
-            >
-              <NavItem
-                label={f.displayName}
-                active={!!dm && isActive({ type: 'dm', id: dm.id, otherUsername: f.username, isFrozen: dm.isFrozen })}
-                onClick={() => onOpenDm(f.userId)}
-                badge={badge}
-                right={hoveredFriend === f.userId
-                  ? (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onBanFriend(f.userId) }}
-                      title="Block user"
-                      className="text-xs text-[#9a8ca2] hover:text-[#ffb4ab] px-1 transition-colors"
-                    >
-                      ✕
-                    </button>
-                  )
-                  : <PresenceDot userId={f.userId} />
-                }
-                muted={frozen}
-              />
-            </div>
+            <NavItem
+              key={dm.id}
+              label={dm.otherUsername}
+              active={isActive({ type: 'dm', id: dm.id, otherUserId: dm.otherUserId, otherUsername: dm.otherUsername, isFrozen: dm.isFrozen })}
+              onClick={() => onOpenDm(dm.otherUserId)}
+              badge={badge}
+              right={<PresenceDot userId={dm.otherUserId} />}
+              muted={dm.isFrozen}
+            />
           )
         })}
       </div>
 
       {/* Footer */}
-      <div className="mt-auto">
-        <div className="px-4 py-2">
-          <button
-            onClick={onBrowse}
-            className="w-full text-sm font-label uppercase tracking-wider text-[#9a8ca2]/50 hover:text-[#dfb7ff] hover:bg-[#353534]/20 px-3 py-1.5 text-left transition-colors"
-          >
-            + Create room
-          </button>
-        </div>
-        <div className="p-3 bg-[#0e0e0e] border-t border-[#353534]/10 flex items-center gap-2">
+      <div className="mt-auto shrink-0" style={{ borderTop: '1px solid var(--surface-highest)', background: 'var(--surface-lowest)' }}>
+        <div className="px-3.5 py-2.5 flex items-center gap-2.5">
           <PresenceDot userId={user!.id} />
-          <span className="truncate flex-1 text-sm font-label uppercase tracking-wider text-[#e5e2e1]/60">{user!.username}</span>
-          <button onClick={onSettings} title="Settings" className="text-[#9a8ca2]/50 hover:text-[#dfb7ff] transition-colors text-sm">⚙</button>
+          <div className="flex-1 min-w-0">
+            <div className="font-label text-[12px] font-semibold uppercase tracking-[0.1em] truncate" style={{ color: 'var(--primary)' }}>{user!.username}</div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.1em]" style={{ color: 'var(--outline)' }}>online · tab-leader</div>
+          </div>
+          <button onClick={onSettings} title="Settings" className="text-[14px] transition-colors" style={{ color: 'var(--outline)' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--primary)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--outline)')}
+          >⚙</button>
         </div>
       </div>
     </div>
@@ -229,24 +266,50 @@ function NavItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-2 px-4 py-1.5 text-[12px] font-label text-left transition-all
-        ${active
-          ? 'bg-[#353534] text-[#dfb7ff] border-l-2 border-[#9d00ff]'
-          : 'text-[#e5e2e1]/40 hover:bg-[#1c1b1b] hover:text-[#dfb7ff]'
-        }
-        ${muted ? 'opacity-50' : ''}`}
+      className={`w-full flex items-center gap-2 py-1.5 text-[12px] font-label text-left transition-colors ${muted ? 'opacity-50' : ''}`}
+      style={{
+        padding: '5px 18px',
+        background: active ? 'var(--surface-highest)' : 'transparent',
+        color: active ? 'var(--primary)' : 'var(--outline)',
+        borderLeft: active ? '2px solid var(--primary-cta)' : '2px solid transparent',
+      }}
+      onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = 'var(--primary)' }}
+      onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = 'var(--outline)' }}
     >
+      {right && <span className="shrink-0">{right}</span>}
       <span className="truncate flex-1">{label}</span>
       {badge ? (
-        <span className="bg-[#9d00ff] text-white text-xs font-bold rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+        <span className="text-white text-[9px] font-bold font-mono min-w-4 text-center px-1" style={{ background: 'var(--primary-cta)' }}>
           {badge > 99 ? '99+' : badge}
         </span>
-      ) : right}
+      ) : null}
     </button>
   )
 }
 
 // ── Attachment display ────────────────────────────────────────────────────────
+// ── Day separator ────────────────────────────────────────────────────────────
+
+function DaySeparator({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2.5 px-5 py-2">
+      <div className="flex-1 h-px" style={{ background: 'var(--surface-highest)' }} />
+      <span className="font-mono text-[10px] uppercase tracking-[0.2em]" style={{ color: 'var(--outline)' }}>{label}</span>
+      <div className="flex-1 h-px" style={{ background: 'var(--surface-highest)' }} />
+    </div>
+  )
+}
+
+function formatDay(d: Date) {
+  const now = new Date()
+  const diff = Math.floor((now.getTime() - d.getTime()) / 86400000)
+  if (diff === 0) return 'today'
+  if (diff === 1) return 'yesterday'
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
+
+// ── Attachment display ────────────────────────────────────────────────────────────
+
 function AttachmentList({ attachments }: { attachments: AttachmentDto[] }) {
   if (!attachments.length) return null
   return (
@@ -275,7 +338,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentDto[] }) {
           >
             <span>📎</span>
             <span className="truncate max-w-xs text-sm font-label">{a.originalFileName}</span>
-            <span className="text-[#9a8ca2] text-xs shrink-0">{kb} KB</span>
+            <span className="text-[#b8aac2] text-xs shrink-0">{kb} KB</span>
           </a>
         )
       })}
@@ -285,7 +348,7 @@ function AttachmentList({ attachments }: { attachments: AttachmentDto[] }) {
 
 // ── Message list ──────────────────────────────────────────────────────────────
 function MessageItem({
-  msg, isMe, canDelete, onEdit, onDelete, onReply,
+  msg, isMe, canDelete, onEdit, onDelete, onReply, style = 'terminal',
 }: {
   msg: Message
   isMe: boolean
@@ -293,63 +356,115 @@ function MessageItem({
   onEdit: (id: string, content: string) => void
   onDelete: (id: string) => void
   onReply: (msg: Message) => void
+  style?: 'terminal' | 'bubble' | 'compact'
 }) {
   const [hover, setHover] = useState(false)
-  const time = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const time = new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
 
+  const HoverActions = () => (
+    <div
+      className="flex gap-0.5"
+      style={{ position: 'absolute', right: 20, top: -8, background: 'var(--surface)', border: '1px solid var(--surface-highest)', padding: 2 }}
+    >
+      <button onClick={() => onReply(msg)} title="Reply"
+        className="font-label text-[11px] px-1.5 py-0.5 transition-colors"
+        style={{ color: 'var(--outline)' }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--primary)')}
+        onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--outline)')}
+      >↩</button>
+      {isMe && msg.content && (
+        <button onClick={() => onEdit(msg.id, msg.content)} title="Edit"
+          className="font-label text-[11px] px-1.5 py-0.5 transition-colors"
+          style={{ color: 'var(--outline)' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--primary)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--outline)')}
+        >✎</button>
+      )}
+      {canDelete && (
+        <button onClick={() => onDelete(msg.id)} title="Delete"
+          className="font-label text-[11px] px-1.5 py-0.5"
+          style={{ color: 'var(--error)' }}
+        >×</button>
+      )}
+    </div>
+  )
+
+  const ReplyContext = ({ compact = false }: { compact?: boolean }) => msg.replyToId ? (
+    <div style={{ borderLeft: '2px solid var(--primary-cta)', paddingLeft: compact ? 6 : 8, background: compact ? 'transparent' : 'var(--surface-low)', marginBottom: compact ? 2 : 3, padding: compact ? '0 0 0 6px' : '3px 10px 3px 8px', maxWidth: 520, fontSize: 11, color: 'var(--outline)' }}>
+      <span className="font-label font-semibold" style={{ color: 'var(--primary)' }}>↩ {msg.replyToAuthor}</span>
+      <span style={{ marginLeft: 8 }}>{msg.replyToContent || '📎 attachment'}</span>
+    </div>
+  ) : null
+
+  if (style === 'bubble') {
+    return (
+      <div
+        className="flex py-1 px-5 relative"
+        style={{ justifyContent: isMe ? 'flex-end' : 'flex-start' }}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+      >
+        {!isMe && (
+          <div className="w-7 h-7 shrink-0 mr-2 mt-0.5 flex items-center justify-center font-mono text-[11px] font-bold" style={{ background: 'var(--surface-highest)', color: 'var(--primary)', border: '1px solid var(--surface-highest)' }}>
+            {msg.authorUsername.slice(0, 2).toUpperCase()}
+          </div>
+        )}
+        <div style={{ maxWidth: '68%' }}>
+          {!isMe && <div className="font-label text-[11px] mb-1 uppercase tracking-[0.05em]" style={{ color: 'var(--tertiary)' }}>{msg.authorUsername}</div>}
+          <div style={{ background: isMe ? 'var(--primary-cta)' : 'var(--surface-mid)', color: isMe ? 'white' : 'var(--on-surface)', padding: '8px 12px', border: isMe ? 'none' : '1px solid var(--surface-highest)', position: 'relative' }}>
+            <ReplyContext />
+            {msg.content && <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: 14 }}>{msg.content}</div>}
+            <AttachmentList attachments={msg.attachments ?? []} />
+          </div>
+          <div className="font-mono text-[10px] mt-0.5" style={{ color: 'var(--outline)', textAlign: isMe ? 'right' : 'left' }}>
+            {time}{msg.editedAt ? ' · edited' : ''}
+          </div>
+        </div>
+        {hover && <HoverActions />}
+      </div>
+    )
+  }
+
+  if (style === 'compact') {
+    return (
+      <div
+        className="px-5 py-0.5 relative"
+        style={{ display: 'grid', gridTemplateColumns: '60px 120px 1fr', gap: '0 12px', fontSize: 13, borderBottom: '1px dashed rgba(154,140,162,0.08)' }}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+      >
+        <span className="font-mono text-[11px]" style={{ color: 'var(--outline)' }}>{time}</span>
+        <span className="font-label font-semibold overflow-hidden text-ellipsis whitespace-nowrap" style={{ color: 'var(--tertiary)' }}>{msg.authorUsername}</span>
+        <div style={{ minWidth: 0 }}>
+          <ReplyContext compact />
+          <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content}</span>
+          {msg.editedAt && <span className="font-label italic ml-1.5" style={{ fontSize: 10, color: 'var(--outline)' }}>(edited)</span>}
+          <AttachmentList attachments={msg.attachments ?? []} />
+        </div>
+        {hover && <HoverActions />}
+      </div>
+    )
+  }
+
+  // terminal (default)
   return (
     <div
-      className="flex items-start gap-2 px-4 py-0.5 hover:bg-[#201f1f] group"
+      className="flex items-start px-5 py-0.5 relative"
+      style={{ background: hover ? 'rgba(154,140,162,0.04)' : 'transparent' }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
       <div className="flex-1 min-w-0">
-        {msg.replyToId && (
-          <div className="mb-1 border-l-2 border-[#9d00ff]/70 pl-2 bg-[#1a1919] py-1 pr-3 max-w-lg rounded-sm">
-            <p className="text-[10px] font-label text-[#9a8ca2] mb-0.5 leading-none">
-              <span className="text-[#dfb7ff] font-semibold">{msg.authorUsername}</span>
-              <span> replied to </span>
-              <span className="text-[#dfb7ff] font-semibold">{msg.replyToAuthor ?? '…'}</span>
-            </p>
-            <p className="text-xs text-[#9a8ca2]/80 truncate leading-tight">
-              {msg.replyToContent || '📎 attachment'}
-            </p>
-          </div>
-        )}
-        <div className="flex items-baseline gap-1.5 flex-wrap">
-          <span className="text-xs text-[#9a8ca2] shrink-0 font-label">({time})</span>
-          <span className="text-base font-bold text-[#ffb0cc] shrink-0 font-label">{msg.authorUsername}:</span>
-          {msg.editedAt && <span className="text-xs text-[#9a8ca2] italic font-label">(edited)</span>}
-          {msg.content && <span className="text-base text-[#e5e2e1] whitespace-pre-wrap break-words">{msg.content}</span>}
+        <ReplyContext />
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="font-mono text-[11px] shrink-0" style={{ color: 'var(--outline)' }}>{time}</span>
+          <span className="text-[14px] font-bold shrink-0 font-label" style={{ color: 'var(--tertiary)' }}>{msg.authorUsername}:</span>
+          {msg.editedAt && <span className="text-[10px] italic font-label" style={{ color: 'var(--outline)' }}>(edited)</span>}
+          {msg.content && <span className="text-[14px] whitespace-pre-wrap break-words" style={{ color: 'var(--on-surface)' }}>{msg.content}</span>}
         </div>
         <AttachmentList attachments={msg.attachments ?? []} />
       </div>
-      {hover && (
-        <div className="flex gap-1 shrink-0">
-          <button
-            onClick={() => onReply(msg)}
-            className="text-xs text-[#9a8ca2] hover:text-[#dfb7ff] px-1.5 py-0.5 bg-[#353534] hover:bg-[#9d00ff] transition-colors font-label"
-          >
-            ↩
-          </button>
-          {isMe && msg.content && (
-            <button
-              onClick={() => onEdit(msg.id, msg.content)}
-              className="text-xs text-[#9a8ca2] hover:text-[#dfb7ff] px-1.5 py-0.5 bg-[#353534] hover:bg-[#9d00ff] transition-colors font-label"
-            >
-              Edit
-            </button>
-          )}
-          {canDelete && (
-            <button
-              onClick={() => onDelete(msg.id)}
-              className="text-xs text-[#9a8ca2] hover:text-[#ffb4ab] px-1.5 py-0.5 bg-[#353534] hover:bg-[#ffb4ab]/20 transition-colors font-label"
-            >
-              Del
-            </button>
-          )}
-        </div>
-      )}
+      {hover && <HoverActions />}
     </div>
   )
 }
@@ -459,14 +574,15 @@ function ManageRoomModal({
   )
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[#131313] border border-[#353534]/20 w-full max-w-lg p-6 shadow-2xl space-y-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-[#dfb7ff] font-bold font-label uppercase tracking-wider text-sm">// Manage # {room.name}</h2>
-          <button onClick={onClose} className="text-[#9a8ca2] hover:text-[#e5e2e1] transition-colors">✕</button>
+    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50" style={{ backdropFilter: 'blur(4px)' }} onClick={onClose}>
+      <div className="w-full max-w-lg space-y-4" style={{ background: 'var(--surface)', border: '1px solid var(--surface-highest)', boxShadow: '0 40px 100px rgba(0,0,0,0.6), 0 0 40px rgba(157,0,255,0.1)', maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3.5" style={{ borderBottom: '1px solid var(--surface-highest)', background: 'var(--surface-low)' }}>
+          <span className="font-label text-[12px] uppercase tracking-[0.2em] font-bold" style={{ color: 'var(--primary)' }}>// Manage # {room.name}</span>
+          <button onClick={onClose} style={{ color: 'var(--outline)', fontSize: 16 }}>✕</button>
         </div>
+        <div className="px-4 pb-4 space-y-4">
 
-        <div className="flex gap-1 border-b border-[#353534]/20 flex-wrap">
+        <div className="flex gap-0.5" style={{ borderBottom: '1px solid var(--surface-highest)', marginBottom: 14 }}>
           <Tab id="members" label="Members" />
           <Tab id="admins" label="Admins" />
           {isAdmin && <Tab id="bans" label="Banned" />}
@@ -482,7 +598,7 @@ function ManageRoomModal({
                 <PresenceDot userId={m.userId} />
                 <div className="flex-1 min-w-0">
                   <p className="text-[#e5e2e1] text-sm truncate font-label">{m.displayName}</p>
-                  <p className="text-xs text-[#9a8ca2] font-label uppercase tracking-wider">
+                  <p className="text-xs text-[#b8aac2] font-label uppercase tracking-wider">
                     {m.userId === room.ownerId ? 'owner' : m.role}
                   </p>
                 </div>
@@ -513,12 +629,12 @@ function ManageRoomModal({
         {tab === 'bans' && (
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {bans.length === 0
-              ? <p className="text-[#9a8ca2] text-sm text-center py-4 font-label">// No banned users.</p>
+              ? <p className="text-[#b8aac2] text-sm text-center py-4 font-label">// No banned users.</p>
               : bans.map((b) => (
                 <div key={b.userId} className="flex items-center gap-2 bg-[#201f1f] px-3 py-2">
                   <div className="flex-1 min-w-0">
                     <p className="text-[#e5e2e1] text-sm font-label">{b.username}</p>
-                    <p className="text-xs text-[#9a8ca2] font-label">
+                    <p className="text-xs text-[#b8aac2] font-label">
                       Banned by {members.find((m) => m.userId === b.bannedById)?.displayName ?? 'admin'}
                     </p>
                   </div>
@@ -538,7 +654,7 @@ function ManageRoomModal({
         {tab === 'admins' && (
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {members.filter((m) => m.role === 'admin').length === 0 && (
-              <p className="text-[#9a8ca2] text-sm text-center py-4 font-label">// No admins yet.</p>
+              <p className="text-[#b8aac2] text-sm text-center py-4 font-label">// No admins yet.</p>
             )}
             {members.filter((m) => m.role === 'admin').map((m) => (
               <div key={m.userId} className="flex items-center gap-2 bg-[#201f1f] px-3 py-2">
@@ -559,7 +675,7 @@ function ManageRoomModal({
             ))}
             {isOwner && (
               <div className="pt-2 border-t border-[#353534]/20">
-                <p className="text-xs text-[#9a8ca2] mb-2 font-label uppercase tracking-wider">Promote a member to admin:</p>
+                <p className="text-xs text-[#b8aac2] mb-2 font-label uppercase tracking-wider">Promote a member to admin:</p>
                 {members.filter((m) => m.role !== 'admin').map((m) => (
                   <div key={m.userId} className="flex items-center gap-2 py-1">
                     <span className="text-sm text-[#e5e2e1]/60 flex-1 truncate font-label">{m.displayName}</span>
@@ -602,7 +718,7 @@ function ManageRoomModal({
                   <div key={u.id} className="flex items-center justify-between bg-[#201f1f] px-3 py-2">
                     <div>
                       <p className="text-[#e5e2e1] text-sm font-label">{u.displayName}</p>
-                      <p className="text-[#9a8ca2] text-xs font-label">@{u.username}</p>
+                      <p className="text-[#b8aac2] text-xs font-label">@{u.username}</p>
                     </div>
                     <button
                       onClick={() => invite(u.id)}
@@ -622,15 +738,15 @@ function ManageRoomModal({
         {tab === 'settings' && (
           <div className="space-y-4">
             <div className="space-y-1">
-              <label className="text-xs font-bold font-label text-[#9a8ca2] uppercase tracking-[0.2em]">Room Name</label>
+              <label className="text-xs font-bold font-label text-[#b8aac2] uppercase tracking-[0.2em]">Room Name</label>
               <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold font-label text-[#9a8ca2] uppercase tracking-[0.2em]">Description</label>
+              <label className="text-xs font-bold font-label text-[#b8aac2] uppercase tracking-[0.2em]">Description</label>
               <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Optional" className={inputCls} />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold font-label text-[#9a8ca2] uppercase tracking-[0.2em]">Visibility</label>
+              <label className="text-xs font-bold font-label text-[#b8aac2] uppercase tracking-[0.2em]">Visibility</label>
               <select
                 value={vis}
                 onChange={(e) => setVis(e.target.value as 'public' | 'private')}
@@ -672,6 +788,8 @@ function ManageRoomModal({
             </div>
           </div>
         )}
+
+        </div>{/* /px-4 pb-4 */}
       </div>
     </div>
   )
@@ -679,62 +797,56 @@ function ManageRoomModal({
 
 // ── Member panel (with moderation) ───────────────────────────────────────────
 function MemberRow({
-  m, myId, ownerId, canActOn, friendIds, requested, onAddFriend, onToggleAdmin, onBan,
+  m, myId, ownerId, canActOn, friendIds, requested, onAddFriend, onToggleAdmin, onBan, dim,
 }: {
   m: RoomMember; myId: string; ownerId: string | null
   canActOn: boolean; friendIds: Set<string>; requested: Set<string>
   onAddFriend: (id: string) => void; onToggleAdmin: (m: RoomMember) => void; onBan: (m: RoomMember) => void
+  dim?: boolean
 }) {
   const [hovered, setHovered] = useState(false)
-  const status = usePresence((s) => s.presences[m.userId] ?? 'offline')
-  const statusLabel = status === 'afk' ? '(AFK)' : status === 'offline' ? '(offline)' : null
 
   return (
     <div
-      className="flex items-center gap-2 py-1 px-1 hover:bg-[#201f1f] transition-colors"
+      className="flex items-center gap-2 cursor-pointer"
+      style={{ padding: '4px 16px', opacity: dim ? 0.45 : 1, background: hovered ? 'rgba(154,140,162,0.06)' : 'transparent', fontSize: 12 }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       <PresenceDot userId={m.userId} />
-      <span className="text-sm text-[#e5e2e1]/70 truncate flex-1 font-label">{m.displayName}</span>
-      {!hovered && statusLabel && (
-        <span className="text-xs text-[#9a8ca2] shrink-0 font-label">{statusLabel}</span>
-      )}
+      <span className="flex-1 truncate font-label" style={{ color: 'var(--on-surface)' }}>{m.displayName}</span>
       {!hovered && (m.userId === ownerId
-        ? <span className="text-xs text-[#ffb0cc] shrink-0 font-label uppercase">owner</span>
+        ? <span className="font-label text-[8px] uppercase tracking-[0.2em] font-bold shrink-0" style={{ color: 'var(--tertiary)' }}>OWN</span>
         : m.role === 'admin'
-          ? <span className="text-xs text-[#dfb7ff] shrink-0 font-label uppercase">admin</span>
+          ? <span className="font-label text-[8px] uppercase tracking-[0.2em] font-bold shrink-0" style={{ color: 'var(--primary)' }}>ADM</span>
           : null)}
       {hovered && (
-        <div className="flex gap-1 shrink-0">
+        <div className="flex gap-0.5 shrink-0">
           {m.userId !== myId && !friendIds.has(m.userId) && (
             <button
               onClick={() => onAddFriend(m.userId)}
               disabled={requested.has(m.userId)}
               title="Add friend"
-              className="text-xs text-[#9a8ca2] hover:text-[#dfb7ff] disabled:text-[#353534] px-1 hover:bg-[#353534] transition-colors font-label"
-            >
-              {requested.has(m.userId) ? '✓' : '+'}
-            </button>
+              className="text-[11px] font-label px-1 transition-colors"
+              style={{ color: requested.has(m.userId) ? 'var(--primary)' : 'var(--outline)' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--primary)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = requested.has(m.userId) ? 'var(--primary)' : 'var(--outline)')}
+            >{requested.has(m.userId) ? '✓' : '+'}</button>
           )}
           {canActOn && (
             <>
               {myId === ownerId && (
-                <button
-                  onClick={() => onToggleAdmin(m)}
-                  title={m.role === 'admin' ? 'Demote' : 'Make admin'}
-                  className="text-xs text-[#9a8ca2] hover:text-[#dfb7ff] px-1 hover:bg-[#353534] transition-colors font-label"
-                >
-                  {m.role === 'admin' ? '↓' : '↑'}
-                </button>
+                <button onClick={() => onToggleAdmin(m)} title={m.role === 'admin' ? 'Demote' : 'Make admin'}
+                  className="text-[11px] font-label px-1 transition-colors"
+                  style={{ color: 'var(--outline)' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--primary)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--outline)')}
+                >{m.role === 'admin' ? '↓' : '↑'}</button>
               )}
-              <button
-                onClick={() => onBan(m)}
-                title="Remove from room"
-                className="text-xs text-[#9a8ca2] hover:text-[#ffb4ab] px-1 hover:bg-[#353534] transition-colors font-label"
-              >
-                ✕
-              </button>
+              <button onClick={() => onBan(m)} title="Remove from room"
+                className="text-[11px] font-label px-1"
+                style={{ color: 'var(--error)' }}
+              >✕</button>
             </>
           )}
         </div>
@@ -742,6 +854,101 @@ function MemberRow({
     </div>
   )
 }
+
+// ── DM sidebar ────────────────────────────────────────────────────────────
+
+function DmSidebar({
+  dm, myId, onBlock,
+}: {
+  dm: ActiveChat & { type: 'dm' }
+  myId: string
+  onBlock: () => void
+}) {
+  const status = usePresence((s) => s.presences[dm.otherUserId ?? ''] ?? 'offline')
+  const initials = (dm.otherUsername ?? '??').slice(0, 2).toUpperCase()
+
+  return (
+    <div className="flex flex-col shrink-0 p-4" style={{ width: 240, background: 'var(--surface-low)', borderLeft: '1px solid var(--surface-highest)' }}>
+      {/* Avatar and info */}
+      <div className="text-center mb-4">
+        <div className="mx-auto mb-2.5 flex items-center justify-center font-mono text-[20px] font-bold"
+          style={{ width: 72, height: 72, background: 'var(--surface-highest)', color: 'var(--primary)', border: '1px solid var(--primary-cta)' }}
+        >
+          {initials}
+        </div>
+        <div className="font-label text-[14px] font-bold uppercase tracking-[0.05em]" style={{ color: 'var(--primary)' }}>@{dm.otherUsername}</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.15em] mt-1 flex items-center justify-center gap-1.5" style={{ color: 'var(--outline)' }}>
+          <PresenceDot userId={dm.otherUserId ?? ''} />
+          {status}
+        </div>
+      </div>
+
+      <div className="font-label text-[9px] font-bold uppercase tracking-[0.3em] mb-1.5" style={{ color: 'var(--outline)' }}>// Info</div>
+      <div className="font-mono text-[11px] leading-relaxed" style={{ color: 'var(--outline)' }}>
+        <div>friends since —</div>
+        <div>shared rooms: —</div>
+      </div>
+
+      {/* Actions */}
+      {dm.isFrozen ? (
+        <div className="mt-5 p-2.5" style={{ background: 'rgba(255,180,171,0.08)', border: '1px solid rgba(255,180,171,0.25)' }}>
+          <div className="font-label text-[9px] font-bold uppercase tracking-[0.25em] mb-1" style={{ color: 'var(--error)' }}>// Blocked</div>
+          <div className="text-[11px] leading-relaxed" style={{ color: 'var(--on-surface-muted)' }}>You have blocked this user. DM is read-only.</div>
+        </div>
+      ) : (
+        <div className="mt-5 flex flex-col gap-1">
+          <button
+            className="raise w-full text-left px-2.5 py-2 text-[11px] font-label uppercase tracking-[0.2em] transition-colors"
+            style={{ color: 'var(--outline)' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--on-surface)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--outline)')}
+          >View profile</button>
+          <button
+            onClick={onBlock}
+            className="raise w-full text-left px-2.5 py-2 text-[11px] font-label uppercase tracking-[0.2em] transition-colors"
+            style={{ color: 'var(--error)' }}
+          >Block user</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Member group (for panel) ──────────────────────────────────────────────────
+function MemberGroup({
+  label, members, dim, myId, ownerId, canActOnMember, friendIds, requested, onAddFriend, onToggleAdmin, onBan,
+}: {
+  label: string; members: RoomMember[]; dim?: boolean
+  myId: string; ownerId: string | null
+  canActOnMember: (m: RoomMember) => boolean
+  friendIds: Set<string>; requested: Set<string>
+  onAddFriend: (id: string) => void
+  onToggleAdmin: (m: RoomMember) => void
+  onBan: (m: RoomMember) => void
+}) {
+  return (
+    <div className="mb-2">
+      <div className="font-label text-[9px] font-bold uppercase tracking-[0.3em] px-4 mb-1" style={{ color: 'var(--outline)' }}>{label}</div>
+      {members.map((m) => (
+        <MemberRow
+          key={m.userId}
+          m={m}
+          myId={myId}
+          ownerId={ownerId}
+          canActOn={canActOnMember(m)}
+          friendIds={friendIds}
+          requested={requested}
+          onAddFriend={onAddFriend}
+          onToggleAdmin={onToggleAdmin}
+          onBan={onBan}
+          dim={dim}
+        />
+      ))}
+    </div>
+  )
+}
+
+// ── Member panel ──────────────────────────────────────────────────────────
 
 function MemberPanel({
   room, roomId, members, bans, ownerId, myId, friendIds,
@@ -798,85 +1005,63 @@ function MemberPanel({
     isAdmin && m.userId !== myId && m.userId !== ownerId &&
     !(m.role === 'admin' && myId !== ownerId)
 
+  const presences = usePresence((s) => s.presences)
+  const online = members.filter((m) => (presences[m.userId] ?? 'offline') === 'online')
+  const afk = members.filter((m) => (presences[m.userId] ?? 'offline') === 'afk')
+  const offline = members.filter((m) => (presences[m.userId] ?? 'offline') === 'offline')
+
   return (
-    <div className="w-56 bg-[#1c1b1b] border-l border-[#353534]/10 flex flex-col shrink-0">
-      {/* Room info card */}
+    <div className="flex flex-col shrink-0" style={{ width: 240, background: 'var(--surface-low)', borderLeft: '1px solid var(--surface-highest)' }}>
+      {/* Room info */}
       {room && (
-        <div className="px-3 pt-3 pb-2 border-b border-[#353534]/10 shrink-0">
-          <p className="text-xs font-bold font-label text-[#ffb0cc] uppercase tracking-[0.3em] mb-1">Room Info</p>
+        <div className="px-4 py-3.5 shrink-0" style={{ borderBottom: '1px solid var(--surface-highest)' }}>
+          <div className="font-label text-[10px] font-bold uppercase tracking-[0.3em] mb-1.5" style={{ color: 'var(--tertiary)' }}>// Room</div>
           {room.description && (
-            <p className="text-sm text-[#e5e2e1]/50 mb-1 leading-snug font-body">{room.description}</p>
+            <div className="text-[12px] leading-relaxed mb-2" style={{ color: 'var(--on-surface-muted)' }}>{room.description}</div>
           )}
-          <p className="text-sm text-[#9a8ca2] capitalize font-label">{room.visibility} room</p>
-          {ownerMember && (
-            <p className="text-sm text-[#9a8ca2] mt-0.5 font-label">
-              Owner: <span className="text-[#ffb0cc]">{ownerMember.displayName}</span>
-            </p>
-          )}
-          {adminMembers.length > 0 && (
-            <p className="text-sm text-[#9a8ca2] mt-0.5 font-label">
-              Admins: {adminMembers.map((a, i) => (
-                <span key={a.userId}>
-                  <span className="text-[#dfb7ff]">{a.displayName}</span>
-                  {i < adminMembers.length - 1 ? ', ' : ''}
-                </span>
-              ))}
-            </p>
-          )}
+          <div className="font-mono text-[10px] uppercase tracking-[0.1em] flex flex-col gap-0.5" style={{ color: 'var(--outline)' }}>
+            <div>visibility: <span style={{ color: 'var(--primary)' }}>{room.visibility}</span></div>
+            {ownerMember && <div>owner: <span style={{ color: 'var(--tertiary)' }}>@{ownerMember.username ?? ownerMember.displayName}</span></div>}
+          </div>
         </div>
       )}
 
-      {/* Members list */}
-      <div className="px-3 pt-2 shrink-0">
-        <p className="text-xs font-bold font-label text-[#ffb0cc] uppercase tracking-[0.3em]">
-          Members {members.length > 0 && `(${members.length})`}
-        </p>
-      </div>
-      <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-0.5">
-        {members.map((m) => (
-          <MemberRow
-            key={m.userId}
-            m={m}
-            myId={myId}
-            ownerId={ownerId}
-            canActOn={canActOnMember(m)}
-            friendIds={friendIds}
-            requested={requested}
-            onAddFriend={addFriend}
-            onToggleAdmin={toggleAdmin}
-            onBan={ban}
-          />
-        ))}
+      {/* Members grouped */}
+      <div className="flex-1 overflow-y-auto py-2">
+        <MemberGroup label={`Online — ${online.length}`} members={online} myId={myId} ownerId={ownerId} canActOnMember={canActOnMember} friendIds={friendIds} requested={requested} onAddFriend={addFriend} onToggleAdmin={toggleAdmin} onBan={ban} />
+        {afk.length > 0 && <MemberGroup label={`AFK — ${afk.length}`} members={afk} myId={myId} ownerId={ownerId} canActOnMember={canActOnMember} friendIds={friendIds} requested={requested} onAddFriend={addFriend} onToggleAdmin={toggleAdmin} onBan={ban} />}
+        {offline.length > 0 && <MemberGroup label={`Offline — ${offline.length}`} members={offline} dim myId={myId} ownerId={ownerId} canActOnMember={canActOnMember} friendIds={friendIds} requested={requested} onAddFriend={addFriend} onToggleAdmin={toggleAdmin} onBan={ban} />}
       </div>
 
       {/* Bottom actions */}
-      {isAdmin && (
-        <div className="px-3 py-2 border-t border-[#353534]/10 shrink-0 space-y-1">
-          <button
-            onClick={onInvite}
-            className="w-full text-sm font-label uppercase tracking-wider text-[#9a8ca2]/60 hover:text-[#dfb7ff] hover:bg-[#353534]/20 px-2 py-1.5 text-left transition-colors"
-          >
-            + Invite user
-          </button>
-          <button
-            onClick={onManage}
-            className="w-full text-sm font-label uppercase tracking-wider text-[#9a8ca2]/60 hover:text-[#e5e2e1] hover:bg-[#353534]/20 px-2 py-1.5 text-left transition-colors"
-          >
-            ⚙ Manage room
-          </button>
-        </div>
-      )}
+      <div className="shrink-0 flex flex-col gap-1 p-2.5" style={{ borderTop: '1px solid var(--surface-highest)' }}>
+        <button
+          onClick={onInvite}
+          className="raise w-full text-left px-2.5 py-2 text-[11px] font-label uppercase tracking-[0.2em]"
+          style={{ color: 'var(--outline)' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--primary)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--outline)')}
+        >+ Invite user</button>
+        <button
+          onClick={onManage}
+          className="raise w-full text-left px-2.5 py-2 text-[11px] font-label uppercase tracking-[0.2em]"
+          style={{ color: 'var(--outline)' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--outline)')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--outline)')}
+        >⚙ Manage room</button>
+      </div>
     </div>
   )
 }
 
 // ── Chat area ─────────────────────────────────────────────────────────────────
 function ChatArea({
-  chat: activeChat, userId, friendIds, onRoomUpdated, onRoomDeleted,
+  chat: activeChat, userId, friendIds, messageStyle, onRoomUpdated, onRoomDeleted,
 }: {
   chat: ActiveChat
   userId: string
   friendIds: Set<string>
+  messageStyle: 'terminal' | 'bubble' | 'compact'
   onRoomUpdated?: (room: Room) => void
   onRoomDeleted?: (roomId: string) => void
 }) {
@@ -1092,122 +1277,161 @@ function ChatArea({
       {/* Messages + input */}
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Header */}
-        <div className="border-b border-[#353534]/10 px-6 py-2 shrink-0 min-h-12 flex flex-col justify-center bg-[#0e0e0e]">
-          <span className="font-bold text-[#dfb7ff] text-sm font-label uppercase tracking-wider">{title}</span>
-          {isRoom && currentRoom?.description && (
-            <span className="text-xs text-[#9a8ca2] mt-0.5 leading-snug font-label">{currentRoom.description}</span>
+        <div
+          className="shrink-0 flex items-center gap-3 px-5"
+          style={{ height: 54, borderBottom: '1px solid var(--surface-highest)', background: 'rgba(14,14,14,0.6)' }}
+        >
+          <div className="flex-1 min-w-0">
+            <div className="font-label text-[14px] font-bold uppercase tracking-[0.05em] truncate" style={{ color: 'var(--primary)' }}>{title}</div>
+            {isRoom && currentRoom?.description && (
+              <div className="text-[11px] mt-px truncate" style={{ color: 'var(--outline)' }}>{currentRoom.description}</div>
+            )}
+          </div>
+          {isRoom && (
+            <span className="font-mono text-[10px] uppercase tracking-[0.15em] shrink-0" style={{ color: 'var(--outline)' }}>
+              {members.length} members
+            </span>
+          )}
+          {isRoom && (members.find((m) => m.userId === userId)?.role === 'admin' || currentRoom?.ownerId === userId) && (
+            <button
+              onClick={() => setManaging(true)}
+              className="font-label text-[10px] uppercase tracking-[0.2em] px-2.5 py-1 transition-colors shrink-0"
+              style={{ color: 'var(--outline)', border: '1px solid var(--surface-highest)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--primary)'; e.currentTarget.style.borderColor = 'var(--primary-cta)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--outline)'; e.currentTarget.style.borderColor = 'var(--surface-highest)' }}
+            >⚙ Manage</button>
           )}
         </div>
 
         {/* Message list */}
-        <div ref={listRef} className="flex-1 overflow-y-auto py-4 space-y-0.5 bg-transparent">
+        <div ref={listRef} className="flex-1 overflow-y-auto py-4 space-y-0.5">
           {loadingMore && (
             <div className="flex items-center gap-3 px-4 py-2">
               <div className="flex-1 border-t border-[#353534]/20" />
-              <span className="text-xs text-[#9a8ca2] shrink-0 font-label uppercase tracking-wider">// older messages</span>
+              <span className="text-xs text-[#b8aac2] shrink-0 font-label uppercase tracking-wider">// older messages</span>
               <div className="flex-1 border-t border-[#353534]/20" />
             </div>
           )}
-          {messages.map((msg) => {
-            const isMe = msg.authorId === userId
-            const isAdmin = isRoom && members.find((m) => m.userId === userId)?.role === 'admin'
-            return (
-              <MessageItem
-                key={msg.id}
-                msg={msg}
-                isMe={isMe}
-                canDelete={isMe || (isRoom && !!isAdmin)}
-                onEdit={(id, content) => { setEditingId(id); setEditContent(content) }}
-                onDelete={deleteMsg}
-                onReply={startReply}
-              />
-            )
-          })}
+          {(() => {
+            const grouped: ({ type: 'sep'; label: string } | { type: 'msg'; msg: Message })[] = []
+            let lastDay = ''
+            for (const msg of messages) {
+              const day = new Date(msg.createdAt).toDateString()
+              if (day !== lastDay) {
+                grouped.push({ type: 'sep', label: formatDay(new Date(msg.createdAt)) })
+                lastDay = day
+              }
+              grouped.push({ type: 'msg', msg })
+            }
+            return grouped.map((item) => {
+              if (item.type === 'sep') {
+                return <DaySeparator key={item.label} label={item.label} />
+              }
+              const msg = item.msg
+              const isMe = msg.authorId === userId
+              const isAdmin = isRoom && members.find((m) => m.userId === userId)?.role === 'admin'
+              return (
+                <MessageItem
+                  key={msg.id}
+                  msg={msg}
+                  isMe={isMe}
+                  canDelete={isMe || (isRoom && !!isAdmin)}
+                  onEdit={(id, content) => { setEditingId(id); setEditContent(content) }}
+                  onDelete={deleteMsg}
+                  onReply={startReply}
+                  style={messageStyle}
+                />
+              )
+            })
+          })()}
           <div ref={bottomRef} />
         </div>
 
         {/* Edit bar */}
         {editingId && (
-          <div className="mx-4 mb-2 p-2 bg-[#201f1f] border border-[#353534]/20 flex gap-2">
+          <div className="mx-5 mb-2 flex gap-2.5 p-2.5" style={{ background: 'var(--surface-mid)', border: '1px solid var(--primary-cta)' }}>
             <input
               autoFocus
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-              className="flex-1 bg-transparent text-[#e5e2e1] text-sm outline-none font-body"
+              onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null) }}
+              className="flex-1 bg-transparent outline-none font-body text-[13px]"
+              style={{ color: 'var(--on-surface)' }}
             />
-            <button onClick={saveEdit} className="text-[#dfb7ff] text-xs hover:text-white font-label uppercase tracking-wider transition-colors">Save</button>
-            <button onClick={() => setEditingId(null)} className="text-[#9a8ca2] text-xs hover:text-[#e5e2e1] font-label uppercase tracking-wider transition-colors">Cancel</button>
+            <button onClick={saveEdit} className="font-label text-[10px] uppercase tracking-[0.2em] font-bold" style={{ color: 'var(--primary)' }}>Save</button>
+            <button onClick={() => setEditingId(null)} className="font-label text-[10px] uppercase tracking-[0.2em]" style={{ color: 'var(--outline)' }}>Cancel</button>
           </div>
         )}
 
         {/* Frozen DM banner */}
         {isFrozen && (
-          <div className="mx-4 mb-2 px-4 py-2 bg-[#201f1f] border border-[#353534]/20 text-sm font-label uppercase tracking-wider text-[#9a8ca2] text-center">
-            // This conversation is frozen — messaging is disabled.
+          <div className="mx-5 mb-2 flex items-center gap-3 px-4 py-3" style={{ background: 'var(--surface-low)', border: '1px dashed var(--surface-highest)' }}>
+            <span className="text-[18px]" style={{ color: 'var(--error)' }}>⊘</span>
+            <div className="flex-1">
+              <div className="font-label text-[11px] uppercase tracking-[0.2em] font-bold" style={{ color: 'var(--error)' }}>// Conversation frozen</div>
+              <div className="text-[12px] mt-0.5" style={{ color: 'var(--outline)' }}>This DM is read-only. History is preserved. No new messages can be sent.</div>
+            </div>
           </div>
         )}
 
         {/* Input */}
-        <div className={`px-4 pb-4 shrink-0 bg-[#131313] ${isFrozen ? 'pointer-events-none opacity-40' : ''}`}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-          <div className="bg-[#201f1f] border border-[#353534]/20 px-4 py-3 flex flex-col gap-2">
-            {/* Reply context */}
-            {replyingTo && (
-              <div className="flex items-start gap-2 border-l-2 border-[#9d00ff]/70 pl-2 bg-[#1a1919] py-1 pr-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[10px] font-label text-[#9a8ca2] mb-0.5 leading-none">
-                    <span>↩ Replying to </span>
-                    <span className="text-[#dfb7ff] font-semibold">{replyingTo.authorUsername}</span>
-                  </p>
-                  <p className="text-xs text-[#9a8ca2]/80 truncate leading-tight">
-                    {replyingTo.content || '📎 attachment'}
-                  </p>
+        {!isFrozen && (
+          <div className="px-5 pb-4 shrink-0">
+            <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+            <div style={{ background: 'var(--surface-mid)', border: '1px solid var(--surface-highest)' }}>
+              {replyingTo && (
+                <div className="flex items-start gap-2.5 px-3 py-1.5" style={{ borderBottom: '1px solid var(--surface-highest)', borderLeft: '2px solid var(--primary-cta)', background: 'var(--surface-low)' }}>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-label text-[10px] uppercase tracking-[0.15em] mb-0.5" style={{ color: 'var(--outline)' }}>
+                      ↩ Replying to <span className="font-semibold" style={{ color: 'var(--primary)' }}>{replyingTo.authorUsername}</span>
+                    </p>
+                    <p className="text-[12px] truncate" style={{ color: 'var(--outline)' }}>{replyingTo.content || '📎 attachment'}</p>
+                  </div>
+                  <button onClick={() => setReplyingTo(null)} style={{ color: 'var(--outline)' }} className="text-xs mt-0.5 shrink-0">✕</button>
                 </div>
+              )}
+              <div className="flex items-end gap-2 px-2.5 py-1.5">
                 <button
-                  onClick={() => setReplyingTo(null)}
-                  className="text-[#9a8ca2] hover:text-[#e5e2e1] text-xs mt-0.5 shrink-0 transition-colors"
-                >✕</button>
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  title="Attach file"
+                  className="text-[18px] font-bold leading-none transition-colors py-1 px-2 shrink-0"
+                  style={{ color: 'var(--tertiary)' }}
+                >
+                  {uploading ? '⏳' : '+'}
+                </button>
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
+                  placeholder={`Message ${title}`}
+                  value={input}
+                  onChange={(e) => {
+                    setInput(e.target.value)
+                    const el = e.target
+                    el.style.height = 'auto'
+                    el.style.height = Math.min(el.scrollHeight, 160) + 'px'
+                  }}
+                  onKeyDown={onKeyDown}
+                  onPaste={onPaste}
+                  className="flex-1 bg-transparent resize-none outline-none max-h-40 font-body"
+                  style={{ color: 'var(--on-surface)', fontSize: 14, lineHeight: 1.5, padding: '6px 0', minHeight: 28 }}
+                />
+                <span className="font-mono text-[10px] shrink-0" style={{ color: input.length > 2800 ? 'var(--error)' : 'var(--outline-variant)' }}>{input.length}/3072</span>
+                <button
+                  onClick={send}
+                  disabled={!input.trim()}
+                  className="font-label text-[10px] uppercase tracking-[0.25em] font-bold px-3.5 py-1.5 shrink-0 transition-colors"
+                  style={{ background: input.trim() ? 'var(--primary-cta)' : 'var(--surface-highest)', color: input.trim() ? 'white' : 'var(--outline)' }}
+                >
+                  Send ↵
+                </button>
               </div>
-            )}
-            {/* Action bar */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                title="Attach file"
-                className="text-[#ffb0cc] hover:text-white disabled:text-[#353534] text-xl font-bold leading-none transition-colors"
-              >
-                {uploading ? '⏳' : '+'}
-              </button>
             </div>
-            {/* Input row */}
-            <div className="flex items-end gap-2">
-              <textarea
-                ref={textareaRef}
-                rows={2}
-                placeholder={`Message ${title}`}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={onKeyDown}
-                onPaste={onPaste}
-                className="flex-1 bg-transparent text-[#e5e2e1] text-base resize-none outline-none placeholder:text-[#9a8ca2]/50 max-h-40 font-body"
-              />
-              <button
-                onClick={send}
-                disabled={!input.trim()}
-                className="text-[#ffb0cc] hover:text-white disabled:text-[#353534] text-base pb-1 font-label uppercase tracking-wider transition-colors font-bold"
-              >
-                Send ↑
-              </button>
+            <div className="font-mono text-[9px] uppercase tracking-[0.15em] px-1 mt-1" style={{ color: 'var(--outline-variant)' }}>
+              ↵ send · shift+↵ newline · paste image to upload
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Room members panel */}
@@ -1224,6 +1448,19 @@ function ChatArea({
           onBansChange={setBans}
           onManage={() => setManaging(true)}
           onInvite={() => setManaging(true)}
+        />
+      )}
+
+      {/* DM sidebar */}
+      {!isRoom && (
+        <DmSidebar
+          dm={activeChat as ActiveChat & { type: 'dm' }}
+          myId={userId}
+          onBlock={() => {
+            try {
+              usersApi.banUser(activeChat.otherUserId ?? '')
+            } catch (err) { console.error('Block failed:', err) }
+          }}
         />
       )}
 
@@ -1245,10 +1482,54 @@ function ChatArea({
   )
 }
 
+// ── Sessions modal ────────────────────────────────────────────────────────────
+function SessionsModal({ onClose }: { onClose: () => void }) {
+  const [sessions, setSessions] = useState<SessionDto[]>([])
+
+  useEffect(() => {
+    authApi.getSessions().then(setSessions).catch(console.error)
+  }, [])
+
+  async function revoke(id: string) {
+    try {
+      await authApi.revokeSession(id)
+      setSessions((s) => s.filter((x) => x.id !== id))
+    } catch (err) { console.error(err) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50" style={{ backdropFilter: 'blur(4px)' }} onClick={onClose}>
+      <div className="w-full max-w-md" style={{ background: 'var(--surface)', border: '1px solid var(--surface-highest)', boxShadow: '0 40px 100px rgba(0,0,0,0.6), 0 0 40px rgba(157,0,255,0.1)', maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3.5" style={{ borderBottom: '1px solid var(--surface-highest)', background: 'var(--surface-low)' }}>
+          <span className="font-label text-[12px] uppercase tracking-[0.2em] font-bold" style={{ color: 'var(--primary)' }}>// Active Sessions</span>
+          <button onClick={onClose} style={{ color: 'var(--outline)', fontSize: 16 }}>✕</button>
+        </div>
+        <div className="p-4 space-y-2">
+          <div className="font-mono text-[11px] uppercase tracking-[0.1em] mb-2" style={{ color: 'var(--outline)' }}>Revoking a session signs out that browser immediately.</div>
+          {sessions.length === 0 && <p className="font-label text-[12px]" style={{ color: 'var(--outline)' }}>// No active sessions.</p>}
+          {sessions.map((s) => (
+            <div key={s.id} className="flex items-center gap-2.5 px-3 py-2" style={{ background: 'var(--surface-low)' }}>
+              <span style={{ fontSize: 14 }}>▪</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-label" style={{ color: 'var(--on-surface)' }}>{s.deviceInfo ?? 'Unknown device'}</div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.1em]" style={{ color: 'var(--outline)' }}>{s.ipAddress ?? '—'} · {new Date(s.createdAt).toLocaleDateString()}</div>
+              </div>
+              <button
+                onClick={() => revoke(s.id)}
+                className="font-label text-[10px] uppercase tracking-[0.15em] font-bold px-2 py-1 transition-colors"
+                style={{ background: 'rgba(255,180,171,0.12)', color: 'var(--error)', border: '1px solid rgba(255,180,171,0.3)' }}
+              >Revoke</button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Account / settings modal ──────────────────────────────────────────────────
 function AccountModal({ onClose }: { onClose: () => void }) {
   const { logout } = useAuth()
-  const [sessions, setSessions] = useState<SessionDto[]>([])
   const [blocked, setBlocked] = useState<BannedUserDto[]>([])
   const [confirm, setConfirm] = useState('')
   const [deleting, setDeleting] = useState(false)
@@ -1258,16 +1539,8 @@ function AccountModal({ onClose }: { onClose: () => void }) {
   const [pwSaving, setPwSaving] = useState(false)
 
   useEffect(() => {
-    authApi.getSessions().then(setSessions).catch(console.error)
     usersApi.getBans().then(setBlocked).catch(console.error)
   }, [])
-
-  async function revoke(id: string) {
-    try {
-      await authApi.revokeSession(id)
-      setSessions((s) => s.filter((x) => x.id !== id))
-    } catch (err) { console.error(err) }
-  }
 
   async function unblockUser(userId: string) {
     try {
@@ -1303,36 +1576,13 @@ function AccountModal({ onClose }: { onClose: () => void }) {
   const inputCls = "w-full bg-[#201f1f] text-[#e5e2e1] px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#9d00ff] border-0 font-body"
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[#131313] border border-[#353534]/20 w-full max-w-md p-6 shadow-2xl space-y-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-[#dfb7ff] font-bold font-label uppercase tracking-wider text-sm">// Account Settings</h2>
-          <button onClick={onClose} className="text-[#9a8ca2] hover:text-[#e5e2e1] transition-colors">✕</button>
+    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50" style={{ backdropFilter: 'blur(4px)' }} onClick={onClose}>
+      <div className="w-full max-w-md" style={{ background: 'var(--surface)', border: '1px solid var(--surface-highest)', boxShadow: '0 40px 100px rgba(0,0,0,0.6), 0 0 40px rgba(157,0,255,0.1)', maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3.5" style={{ borderBottom: '1px solid var(--surface-highest)', background: 'var(--surface-low)' }}>
+          <span className="font-label text-[12px] uppercase tracking-[0.2em] font-bold" style={{ color: 'var(--primary)' }}>// Account Settings</span>
+          <button onClick={onClose} style={{ color: 'var(--outline)', fontSize: 16 }}>✕</button>
         </div>
-
-        {/* Sessions */}
-        <div>
-          <p className="text-[9px] font-bold font-label text-[#dfb7ff]/40 uppercase tracking-[0.3em] mb-3">
-            Active Sessions — {sessions.length}
-          </p>
-          <div className="space-y-2 max-h-52 overflow-y-auto">
-            {sessions.length === 0 && <p className="text-[#9a8ca2] text-sm font-label">// No active sessions.</p>}
-            {sessions.map((s) => (
-              <div key={s.id} className="flex items-start justify-between bg-[#201f1f] px-3 py-2 gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm text-[#e5e2e1] truncate font-label">{s.deviceInfo ?? 'Unknown device'}</p>
-                  <p className="text-xs text-[#9a8ca2] font-label">{s.ipAddress ?? '—'} · {new Date(s.createdAt).toLocaleDateString()}</p>
-                </div>
-                <button
-                  onClick={() => revoke(s.id)}
-                  className="text-xs font-label uppercase tracking-wider text-[#9a8ca2] hover:text-[#ffb4ab] shrink-0 mt-0.5 transition-colors"
-                >
-                  Revoke
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+        <div className="p-4 space-y-5">
 
         {/* Change password */}
         <div className="border-t border-[#353534]/20 pt-4 space-y-2">
@@ -1365,13 +1615,13 @@ function AccountModal({ onClose }: { onClose: () => void }) {
           </p>
           <div className="space-y-1 max-h-36 overflow-y-auto">
             {blocked.length === 0
-              ? <p className="text-[#9a8ca2] text-sm font-label">// No blocked users.</p>
+              ? <p className="text-[#b8aac2] text-sm font-label">// No blocked users.</p>
               : blocked.map((b) => (
                 <div key={b.userId} className="flex items-center justify-between bg-[#201f1f] px-3 py-2">
                   <span className="text-sm text-[#e5e2e1] font-label">@{b.username}</span>
                   <button
                     onClick={() => unblockUser(b.userId)}
-                    className="text-xs font-label uppercase tracking-wider text-[#9a8ca2] hover:text-[#d5baff] transition-colors"
+                    className="text-xs font-label uppercase tracking-wider text-[#b8aac2] hover:text-[#d5baff] transition-colors"
                   >
                     Unblock
                   </button>
@@ -1404,6 +1654,7 @@ function AccountModal({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         </div>
+        </div>{/* /p-4 space-y-5 */}
       </div>
     </div>
   )
@@ -1453,17 +1704,18 @@ function RoomBrowser({
     } catch (err) { console.error(err) }
   }
 
-  const inputCls = "w-full bg-[#201f1f] text-[#e5e2e1] px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#9d00ff] border-0 font-body placeholder:text-[#9a8ca2]/50"
+  const inputCls = "w-full bg-[#201f1f] text-[#e5e2e1] px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#9d00ff] border-0 font-body placeholder:text-[#b8aac2]/50"
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[#131313] border border-[#353534]/20 w-full max-w-md p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-[#dfb7ff] font-bold font-label uppercase tracking-wider text-sm">
-            // {mode === 'private' ? 'My Private Rooms' : 'Browse Public Rooms'}
-          </h2>
-          <button onClick={onClose} className="text-[#9a8ca2] hover:text-[#e5e2e1] transition-colors">✕</button>
+    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50" style={{ backdropFilter: 'blur(4px)' }} onClick={onClose}>
+      <div className="w-full max-w-lg" style={{ background: 'var(--surface)', border: '1px solid var(--surface-highest)', boxShadow: '0 40px 100px rgba(0,0,0,0.6), 0 0 40px rgba(157,0,255,0.1)', maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3.5" style={{ borderBottom: '1px solid var(--surface-highest)', background: 'var(--surface-low)' }}>
+          <span className="font-label text-[12px] uppercase tracking-[0.2em] font-bold" style={{ color: 'var(--primary)' }}>
+            // {mode === 'private' ? 'My Private Rooms' : 'Browse Rooms'}
+          </span>
+          <button onClick={onClose} style={{ color: 'var(--outline)', fontSize: 16 }}>✕</button>
         </div>
+        <div className="p-4">
 
         {mode === 'public' && (
           <input
@@ -1482,7 +1734,7 @@ function RoomBrowser({
 
         <div className="space-y-2 max-h-64 overflow-y-auto mb-4">
           {(mode === 'private' ? privateRooms : rooms).length === 0 && (
-            <p className="text-[#9a8ca2] text-sm text-center py-4 font-label">
+            <p className="text-[#b8aac2] text-sm text-center py-4 font-label">
               // {mode === 'private' ? 'No private rooms yet.' : 'No public rooms yet.'}
             </p>
           )}
@@ -1490,9 +1742,9 @@ function RoomBrowser({
             <div key={r.id} className="flex items-center justify-between bg-[#201f1f] px-3 py-2">
               <div>
                 <p className="text-[#e5e2e1] text-sm font-label"># {r.name}</p>
-                {r.description && <p className="text-[#9a8ca2] text-sm font-label">{r.description}</p>}
+                {r.description && <p className="text-[#b8aac2] text-sm font-label">{r.description}</p>}
                 {r.memberCount !== undefined && (
-                  <p className="text-[#9a8ca2]/50 text-xs font-label">{r.memberCount} member{r.memberCount !== 1 ? 's' : ''}</p>
+                  <p className="text-[#b8aac2]/50 text-xs font-label">{r.memberCount} member{r.memberCount !== 1 ? 's' : ''}</p>
                 )}
               </div>
               <button
@@ -1543,6 +1795,7 @@ function RoomBrowser({
             </div>
           </div>
         )}
+        </div>{/* /p-4 */}
       </div>
     </div>
   )
@@ -1592,17 +1845,18 @@ function FriendsModal({ onClose, onFriendAdded }: { onClose: () => void; onFrien
     } catch (err) { console.error(err) }
   }
 
-  const inputCls = "w-full bg-[#201f1f] text-[#e5e2e1] px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#9d00ff] border-0 font-body placeholder:text-[#9a8ca2]/50"
+  const inputCls = "w-full bg-[#201f1f] text-[#e5e2e1] px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#9d00ff] border-0 font-body placeholder:text-[#b8aac2]/50"
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-[#131313] border border-[#353534]/20 w-full max-w-md p-6 shadow-2xl space-y-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-[#dfb7ff] font-bold font-label uppercase tracking-wider text-sm">// Friends</h2>
-          <button onClick={onClose} className="text-[#9a8ca2] hover:text-[#e5e2e1] transition-colors">✕</button>
+    <div className="fixed inset-0 bg-black/75 flex items-center justify-center z-50" style={{ backdropFilter: 'blur(4px)' }} onClick={onClose}>
+      <div className="w-full max-w-md" style={{ background: 'var(--surface)', border: '1px solid var(--surface-highest)', boxShadow: '0 40px 100px rgba(0,0,0,0.6), 0 0 40px rgba(157,0,255,0.1)', maxHeight: '85vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3.5" style={{ borderBottom: '1px solid var(--surface-highest)', background: 'var(--surface-low)' }}>
+          <span className="font-label text-[12px] uppercase tracking-[0.2em] font-bold" style={{ color: 'var(--primary)' }}>// Contacts</span>
+          <button onClick={onClose} style={{ color: 'var(--outline)', fontSize: 16 }}>✕</button>
         </div>
+        <div className="p-4 space-y-4">
 
-        <div className="flex gap-1 border-b border-[#353534]/20">
+        <div className="flex gap-0.5" style={{ borderBottom: '1px solid var(--surface-highest)', marginBottom: -1 }}>
           <button
             onClick={() => setTab('add')}
             className={`px-4 py-2 text-xs font-bold font-label uppercase tracking-wider transition-colors
@@ -1647,13 +1901,13 @@ function FriendsModal({ onClose, onFriendAdded }: { onClose: () => void; onFrien
             />
             <div className="space-y-1 max-h-44 overflow-y-auto">
               {results.length === 0 && query && !searching && (
-                <p className="text-[#9a8ca2] text-sm text-center py-3 font-label">// No users found.</p>
+                <p className="text-[#b8aac2] text-sm text-center py-3 font-label">// No users found.</p>
               )}
               {results.map((u) => (
                 <div key={u.id} className="flex items-center justify-between bg-[#201f1f] px-3 py-2">
                   <div>
                     <p className="text-[#e5e2e1] text-sm font-label">{u.displayName}</p>
-                    <p className="text-[#9a8ca2] text-xs font-label">@{u.username}</p>
+                    <p className="text-[#b8aac2] text-xs font-label">@{u.username}</p>
                   </div>
                   <button
                     onClick={() => sendRequest(u.id)}
@@ -1671,13 +1925,13 @@ function FriendsModal({ onClose, onFriendAdded }: { onClose: () => void; onFrien
         {tab === 'requests' && (
           <div className="space-y-1 max-h-64 overflow-y-auto">
             {requests.length === 0 && (
-              <p className="text-[#9a8ca2] text-sm text-center py-4 font-label">// No pending requests.</p>
+              <p className="text-[#b8aac2] text-sm text-center py-4 font-label">// No pending requests.</p>
             )}
             {requests.map((r) => (
               <div key={r.userId} className="flex items-center justify-between bg-[#201f1f] px-3 py-2">
                 <div className="min-w-0 mr-2">
                   <p className="text-[#e5e2e1] text-sm font-label">{r.displayName}</p>
-                  <p className="text-[#9a8ca2] text-xs font-label">@{r.username}</p>
+                  <p className="text-[#b8aac2] text-xs font-label">@{r.username}</p>
                   {r.message && <p className="text-[#e5e2e1]/40 text-xs mt-0.5 italic truncate font-label">"{r.message}"</p>}
                 </div>
                 <div className="flex gap-2">
@@ -1698,6 +1952,7 @@ function FriendsModal({ onClose, onFriendAdded }: { onClose: () => void; onFrien
             ))}
           </div>
         )}
+        </div>{/* /p-4 space-y-4 */}
       </div>
     </div>
   )
@@ -1715,7 +1970,20 @@ export default function ChatApp() {
   const activeRef = useRef<ActiveChat | null>(null)
   const [browsing, setBrowsing] = useState<false | 'public' | 'private'>(false)
   const [settings, setSettings] = useState(false)
+  const [sessionsModal, setSessionsModal] = useState(false)
   const [friendsModal, setFriendsModal] = useState(false)
+  const [messageStyle, setMessageStyle] = useState<'terminal' | 'bubble' | 'compact'>(() => {
+    try { return (localStorage.getItem('hmc-msg-style') as 'terminal' | 'bubble' | 'compact') || 'terminal' } catch { return 'terminal' }
+  })
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-accent', 'purple')
+    document.documentElement.setAttribute('data-crt', 'heavy')
+  }, [])
+
+  useEffect(() => {
+    try { localStorage.setItem('hmc-msg-style', messageStyle) } catch {}
+  }, [messageStyle])
 
   useEffect(() => { activeRef.current = active }, [active])
 
@@ -1767,7 +2035,7 @@ export default function ChatApp() {
     try {
       const dm = await dmsApi.open(userId)
       setDms((d) => d.some((x) => x.id === dm.id) ? d : [dm, ...d])
-      setActive({ type: 'dm', id: dm.id, otherUsername: dm.otherUsername, isFrozen: dm.isFrozen })
+      setActive({ type: 'dm', id: dm.id, otherUserId: dm.otherUserId, otherUsername: dm.otherUsername, isFrozen: dm.isFrozen })
       clear(dm.id)
     } catch (err) {
       console.error('Could not open DM:', err)
@@ -1792,23 +2060,18 @@ export default function ChatApp() {
   const friendIds = new Set(friends.map((f) => f.userId))
 
   return (
-    <div
-      className="flex flex-col h-screen text-[#e5e2e1] overflow-hidden relative"
-      style={{
-        backgroundImage: `url(${chatBg})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed',
-      }}
-    >
+    <div className="flex flex-col h-screen text-[#e5e2e1] overflow-hidden relative bg-[#0e0e0e] bg-grid crt-vignette">
+      <div className="scanlines" />
       <TopNav
         user={user!}
         onPublicRooms={() => setBrowsing('public')}
         onPrivateRooms={() => setBrowsing('private')}
         onContacts={() => setFriendsModal(true)}
-        onSessions={() => setSettings(true)}
+        onSessions={() => setSessionsModal(true)}
         onSettings={() => setSettings(true)}
         onSignOut={logout}
+        messageStyle={messageStyle}
+        onMessageStyleChange={setMessageStyle}
       />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
@@ -1831,6 +2094,7 @@ export default function ChatApp() {
               chat={active}
               userId={user!.id}
               friendIds={friendIds}
+              messageStyle={messageStyle}
               onRoomUpdated={(r) => {
                 setMyRooms((rooms) => rooms.map((x) => x.id === r.id ? r : x))
                 setActive((a) => a?.type === 'room' && a.id === r.id ? { ...a, name: r.name } : a)
@@ -1843,16 +2107,14 @@ export default function ChatApp() {
           ) : (
             <div className="flex-1 flex items-center justify-center bg-transparent">
               <div className="text-center">
-                <p className="text-lg font-bold font-label uppercase tracking-widest text-[#dfb7ff] chromatic-aberration mb-1">
-                  HACKER_MAN // TERMINAL
-                </p>
-                <p className="text-sm font-label uppercase tracking-[0.2em] text-[#9a8ca2] mt-1">
-                  Select a room or DM to begin transmission
+                <div className="font-mono text-[11px] text-[#b8aac2] uppercase tracking-[0.2em] mb-2">// no channel selected</div>
+                <p className="text-2xl font-bold font-headline text-[#dfb7ff] chromatic-aberration mb-1">
+                  pick a room or DM
                 </p>
                 <div className="mt-6 h-px w-48 mx-auto bg-gradient-to-r from-transparent via-[#9d00ff]/50 to-transparent" />
                 <button
                   onClick={() => setBrowsing('public')}
-                  className="mt-6 bg-[#9d00ff] hover:brightness-110 text-white text-sm font-label uppercase tracking-[0.2em] px-6 py-2 transition-all active:scale-95"
+                  className="mt-6 bg-[#9d00ff] hover:brightness-110 text-white text-xs font-label uppercase tracking-[0.2em] px-6 py-2 transition-all active:scale-95"
                 >
                   Browse rooms
                 </button>
@@ -1871,6 +2133,7 @@ export default function ChatApp() {
         />
       )}
       {settings && <AccountModal onClose={() => setSettings(false)} />}
+      {sessionsModal && <SessionsModal onClose={() => setSessionsModal(false)} />}
       {friendsModal && (
         <FriendsModal
           onClose={() => setFriendsModal(false)}

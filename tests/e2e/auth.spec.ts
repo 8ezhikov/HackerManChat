@@ -11,10 +11,11 @@ test('full auth flow - register, login, logout', async ({ page }) => {
   await page.fill('input[placeholder="PASSWORD"]', 'securepassword123')
   await page.click('button:has-text("CREATE_ACCOUNT")')
 
-  // Verify logged in - wait for ChatApp to render (Public Rooms button appears)
-  await page.waitForSelector('button:has-text("Public Rooms")', { timeout: 10000 })
+  // Verify logged in - wait for ChatApp to render (Rooms button appears)
+  await page.waitForSelector('button:has-text("Rooms")', { timeout: 10000 })
 
-  // Logout using the Sign out button in the header
+  // Logout: open profile dropdown then click Sign out
+  await page.locator('button', { hasText: /▾/ }).click()
   const logoutBtn = page.locator('button:has-text("Sign out")')
   await expect(logoutBtn).toBeVisible({ timeout: 5000 })
   await logoutBtn.click()
@@ -30,6 +31,6 @@ test('login with invalid credentials shows error', async ({ page }) => {
   await page.fill('input[placeholder="PASSWORD"]', 'wrongpassword')
   await page.click('button:has-text("SIGN_IN")')
 
-  // Expect error message
-  await expect(page.locator('text=// ')).toBeVisible({ timeout: 5000 })
+  // Expect error message - look for li with error text starting with //
+  await expect(page.locator('li:has-text("//")')).toBeVisible({ timeout: 5000 })
 })

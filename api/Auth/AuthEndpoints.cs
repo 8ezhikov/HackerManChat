@@ -78,8 +78,6 @@ public static class AuthEndpoints
         if (session == null)
             return Results.Unauthorized();
 
-        await tokens.RevokeAsync(session);
-
         var access = tokens.CreateAccessToken(session.User);
         var (newSession, raw) = await tokens.CreateSessionAsync(
             session.User, http.Connection.RemoteIpAddress?.ToString(), http.Request.Headers.UserAgent.ToString());

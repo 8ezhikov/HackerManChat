@@ -54,4 +54,4 @@ export type Presence = 'online' | 'afk' | 'offline'
 
 export type ActiveChat =
   | { type: 'room'; id: string; name: string }
-  | { type: 'dm'; id: string; otherUsername: string; isFrozen?: boolean }
+  | { type: 'dm'; id: string; otherUserId: string; otherUsername: string; isFrozen?: boolean }

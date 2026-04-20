@@ -4,10 +4,10 @@ test.use({ storageState: '.auth/alice.json' })
 
 test('create public room', async ({ page }) => {
   await page.goto('/')
-  await page.waitForSelector('button:has-text("Browse")', { timeout: 10000 })
+  await page.waitForSelector('button:has-text("Rooms")', { timeout: 10000 })
 
   // Open room browser
-  await page.click('button:has-text("Browse")')
+  await page.click('button:has-text("Rooms")')
 
   // Create room
   const createRoomBtn = page.locator('text=+ Create room')
@@ -33,10 +33,10 @@ test('create public room', async ({ page }) => {
 test('join public room as second user', async ({ page }) => {
   // First user creates room
   await page.goto('/')
-  await page.waitForSelector('button:has-text("Browse")', { timeout: 10000 })
+  await page.waitForSelector('button:has-text("Rooms")', { timeout: 10000 })
 
   // Open room browser
-  await page.click('button:has-text("Browse")')
+  await page.click('button:has-text("Rooms")')
   const createBtn = page.locator('text=+ Create room')
   await expect(createBtn).toBeVisible({ timeout: 5000 })
   await createBtn.click()

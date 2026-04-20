@@ -16,7 +16,7 @@ setup('authenticate alice', async ({ page }) => {
   await page.click('button:has-text("CREATE_ACCOUNT")')
 
   // Wait for ChatApp to render (user state set)
-  await page.waitForSelector('button:has-text("Public Rooms")', { timeout: 30000 })
+  await page.waitForSelector('button:has-text("Rooms")', { timeout: 30000 })
 
   await page.context().storageState({ path: authFile })
 })
@@ -32,7 +32,7 @@ setup('authenticate bob', async ({ page }) => {
   await page.fill('input[placeholder="PASSWORD"]', 'password123')
   await page.click('button:has-text("CREATE_ACCOUNT")')
 
-  await page.waitForSelector('button:has-text("Public Rooms")', { timeout: 30000 })
+  await page.waitForSelector('button:has-text("Rooms")', { timeout: 30000 })
 
   await page.context().storageState({ path: bobAuthFile })
 })
